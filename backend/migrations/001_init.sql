@@ -1,0 +1,2 @@
+-- Initial schema: users, agents, messages, tasks, calls, payments, calendar_events,
+-- and the call_events hypertable (Tiger Data). Owner: Jamil. See docs/DESIGN.md section 4.

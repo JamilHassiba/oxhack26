@@ -1,0 +1,1 @@
+# Caddy on the Vultr VM: HTTPS, serves the frontend build, proxies /api to uvicorn. Owner: Jamil.

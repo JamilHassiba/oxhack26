@@ -1,0 +1,6 @@
+# Files git should ignore: secrets, virtualenvs, caches and build output.
+.env
+.venv/
+__pycache__/
+node_modules/
+dist/
