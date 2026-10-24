@@ -146,6 +146,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/payments/{payment_id}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Approve Payment
+     * @description The user approved: charge it (Stripe test mode) and mark it paid.
+     */
+    post: operations['approve_payment_payments__payment_id__approve_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/payments/{payment_id}/deny': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Deny Payment */
+    post: operations['deny_payment_payments__payment_id__deny_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -635,6 +672,68 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ChatResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  approve_payment_payments__payment_id__approve_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        payment_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Payment'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  deny_payment_payments__payment_id__deny_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        payment_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Payment'];
         };
       };
       /** @description Validation Error */

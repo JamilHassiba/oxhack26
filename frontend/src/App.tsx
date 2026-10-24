@@ -34,7 +34,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { api, DEMO, downloadCalendar } from './api';
-import { tools, shortcuts, dateTime } from './config';
+import { tools, shortcuts, dateTime, TIME_ZONE } from './config';
 import { Avatar, ErrorNotice, Loading, Empty, Modal, PageHeading } from './components/ui';
 import { TaskCard, PaymentCard } from './components/TaskCard';
 import { useAgents, useTasks, useWorkspaceTasks } from './state';
@@ -696,17 +696,23 @@ function CalendarRow({ event }: { event: CalendarEvent }) {
   return (
     <article className="calendar-row">
       <div className="date-tile">
-        <span>{date.toLocaleDateString('en-GB', { month: 'short' })}</span>
-        <b>{date.getDate()}</b>
+        <span>{date.toLocaleDateString('en-GB', { timeZone: TIME_ZONE, month: 'short' })}</span>
+        <b>{date.toLocaleDateString('en-GB', { timeZone: TIME_ZONE, day: 'numeric' })}</b>
       </div>
       <div>
         <span className="eyebrow">CONFIRMED PLAN</span>
         <h3>{event.title}</h3>
         <p>
           <Clock3 size={13} />
-          {date.toLocaleDateString('en-GB', { weekday: 'long' })} ·{' '}
-          {date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} –{' '}
+          {date.toLocaleDateString('en-GB', { timeZone: TIME_ZONE, weekday: 'long' })} ·{' '}
+          {date.toLocaleTimeString('en-GB', {
+            timeZone: TIME_ZONE,
+            hour: '2-digit',
+            minute: '2-digit',
+          })}{' '}
+          –{' '}
           {new Date(event.ends_at).toLocaleTimeString('en-GB', {
+            timeZone: TIME_ZONE,
             hour: '2-digit',
             minute: '2-digit',
           })}

@@ -30,8 +30,11 @@ export const shortcuts = {
     prompt: 'Help me organise my schedule for tomorrow.',
   },
 };
+// Bookings are at UK venues: always show UK time, whatever the viewer's own time zone.
+export const TIME_ZONE = 'Europe/London';
 export const dateTime = (date: string) =>
   new Date(date).toLocaleString('en-GB', {
+    timeZone: TIME_ZONE,
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
