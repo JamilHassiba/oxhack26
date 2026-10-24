@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 from app import db
 from app.contracts import TaskStatus
@@ -122,3 +123,31 @@ async def count_calls(task_id: str) -> int:
     async with db.get_pool().connection() as conn:
         (n,) = await (await conn.execute("SELECT count(*) FROM calls WHERE task_id = %s", (task_id,))).fetchone()
     return n
+
+
+async def load_call(call_id: str) -> dict[str, Any]:
+    """The call row Jamil's webhook filled in, plus the name of the contact that was called."""
+    async with db.get_pool().connection() as conn:
+        cur = conn.cursor(row_factory=dict_row)
+        await cur.execute(
+            """
+            SELECT c.id::text AS id, c.task_id::text AS task_id, c.to_number, c.status,
+                   c.transcript, c.summary, c.outcome,
+                   (SELECT name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1) AS contact_name
+            FROM calls c
+            WHERE c.id = %s
+            """,
+            (call_id,),
+        )
+        row = await cur.fetchone()
+    if row is None:
+        raise LookupError(f"Call {call_id} not found")
+    return row
+
+
+async def save_call_outcome(call_id: str, outcome: dict[str, Any]) -> None:
+    """Stores our extracted outcome, unless Jamil's webhook already stored one."""
+    async with db.get_pool().connection() as conn:
+        await conn.execute(
+            "UPDATE calls SET outcome = %s WHERE id = %s AND outcome IS NULL", (Jsonb(outcome), call_id)
+        )

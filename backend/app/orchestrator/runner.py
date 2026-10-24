@@ -13,14 +13,16 @@ from app.orchestrator.loop import run_tool_loop
 from app.orchestrator.prompts import build_system_prompt
 from app.services.gemini import get_client
 from app.tools.base import Tool
+from app.tools.declared import calendar_tools, email_tools
 from app.tools.phone import phone_tools
 
 log = logging.getLogger(__name__)
 
-# Agent permission -> builds the tools Gemini may call with it, bound to one task.
-# Later steps add calendar, email and payments.
+# Agent permission -> builds the tools Gemini may call with it, bound to one task. Payments come later.
 TOOLS_BY_PERMISSION: dict[str, Callable[[dict[str, Any]], list[Tool]]] = {
     "phone": phone_tools,
+    "calendar": calendar_tools,
+    "email": email_tools,
 }
 
 FAILED_SUMMARY = "Sorry, something went wrong while working on this. Please try again."

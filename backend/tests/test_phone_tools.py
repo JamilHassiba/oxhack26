@@ -86,3 +86,13 @@ def test_place_call_stops_after_max_calls(db):
     db["calls"] = phone.MAX_CALLS_PER_TASK
     assert "error" in run("place_call", contact_id="c-1", goal="Book")
     assert db["briefs"] == []
+
+
+def test_fake_call_end_scenarios_fill_in_names():
+    from scripts.fake_call_end import SCENARIOS
+
+    assert SCENARIOS["no_answer"] == []
+    for lines in SCENARIOS.values():
+        for speaker, text in lines:
+            assert speaker in {"agent", "restaurant"}
+            text.format(goal="g", user="u", contact="c")

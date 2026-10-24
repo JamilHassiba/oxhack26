@@ -1,0 +1,66 @@
+"""Structured outcome extraction: reads a call transcript and returns the facts as JSON (Gemini structured output)."""
+
+import json
+from datetime import datetime, timezone
+from typing import Any
+
+from google import genai
+from google.genai import types
+
+OUTCOME_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "booked": {
+            "type": "boolean",
+            "description": "True only if the business clearly confirmed the booking or request.",
+        },
+        "starts_at": {
+            "type": ["string", "null"],
+            "description": "Confirmed UK local date and time, e.g. 2026-10-25T18:00. Null if nothing was confirmed.",
+        },
+        "party_size": {"type": ["integer", "null"]},
+        "deposit_required": {"type": "boolean"},
+        "deposit_amount_pence": {
+            "type": ["integer", "null"],
+            "description": "Deposit in whole pence, e.g. 2000 for £20. Null if no deposit.",
+        },
+        "reason": {
+            "type": "string",
+            "description": "One short sentence on what happened, e.g. 'Fully booked at 18:00; 20:30 offered'.",
+        },
+    },
+    "required": ["booked", "starts_at", "party_size", "deposit_required", "deposit_amount_pence", "reason"],
+}
+
+
+def transcript_text(transcript: list[dict[str, Any]]) -> str:
+    return "\n".join(f"{line.get('speaker', '?')}: {line.get('text', '')}" for line in transcript) or (
+        "(no conversation: nobody answered)"
+    )
+
+
+async def extract_outcome(
+    client: genai.Client,
+    *,
+    model: str,
+    goal: str,
+    transcript: list[dict[str, Any]],
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    now = now or datetime.now(timezone.utc)
+    prompt = (
+        "Extract the result of this phone call as JSON.\n"
+        f"Goal of the call: {goal}\n"
+        f"Today is {now:%A %d %B %Y} (UTC). Times said on the call are UK local time (Europe/London).\n\n"
+        f"Transcript:\n{transcript_text(transcript)}"
+    )
+    response = await client.aio.models.generate_content(
+        model=model,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0,
+            response_mime_type="application/json",
+            response_json_schema=OUTCOME_SCHEMA,
+        ),
+    )
+    return json.loads(response.text)
