@@ -10,6 +10,11 @@ from google.genai import types
 OUTCOME_SCHEMA = {
     "type": "object",
     "properties": {
+        "result": {
+            "type": "string",
+            "enum": ["booked", "fully_booked", "no_answer", "voicemail", "declined", "other"],
+            "description": "What happened. fully_booked: no space at the asked time. declined: they said no for another reason.",
+        },
         "booked": {
             "type": "boolean",
             "description": "True only if the business clearly confirmed the booking or request.",
@@ -24,12 +29,20 @@ OUTCOME_SCHEMA = {
             "type": ["integer", "null"],
             "description": "Deposit in whole pence, e.g. 2000 for £20. Null if no deposit.",
         },
+        "offered_times": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Other times the business offered, as UK local date and time, e.g. 2026-10-25T20:30.",
+        },
         "reason": {
             "type": "string",
             "description": "One short sentence on what happened, e.g. 'Fully booked at 18:00; 20:30 offered'.",
         },
     },
-    "required": ["booked", "starts_at", "party_size", "deposit_required", "deposit_amount_pence", "reason"],
+    "required": [
+        "result", "booked", "starts_at", "party_size", "deposit_required", "deposit_amount_pence", "offered_times",
+        "reason",
+    ],
 }
 
 
@@ -45,12 +58,14 @@ async def extract_outcome(
     model: str,
     goal: str,
     transcript: list[dict[str, Any]],
+    call_status: str | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     now = now or datetime.now(timezone.utc)
     prompt = (
         "Extract the result of this phone call as JSON.\n"
         f"Goal of the call: {goal}\n"
+        f"Call status from the phone system: {call_status or 'unknown'}\n"
         f"Today is {now:%A %d %B %Y} (UTC). Times said on the call are UK local time (Europe/London).\n\n"
         f"Transcript:\n{transcript_text(transcript)}"
     )

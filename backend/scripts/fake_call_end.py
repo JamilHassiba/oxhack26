@@ -7,6 +7,7 @@ docs/EVENTS.md format, so the website's timeline shows them), then runs on_call_
     .venv/Scripts/python -m scripts.fake_call_end <call_id> booked      # table confirmed, £20 deposit
     .venv/Scripts/python -m scripts.fake_call_end <call_id> full        # fully booked, 20:30 offered
     .venv/Scripts/python -m scripts.fake_call_end <call_id> no_answer   # nobody picked up
+    .venv/Scripts/python -m scripts.fake_call_end <call_id> voicemail   # answering machine
 """
 
 import argparse
@@ -35,6 +36,17 @@ SCENARIOS = {
         ("agent", "Thanks, I'll check with {user} and call back if that works. Goodbye."),
     ],
     "no_answer": [],
+    "voicemail": [
+        ("restaurant", "Hi, you've reached {contact}. We can't take your call right now, please leave a message."),
+    ],
+}
+
+# How each scenario ends, as in EVENTS.md: (ended reason, timeline text, calls.status)
+ENDINGS = {
+    "booked": ("completed", "Call finished", "ended"),
+    "full": ("completed", "Call finished", "ended"),
+    "no_answer": ("no_answer", "No answer", "no_answer"),
+    "voicemail": ("voicemail", "Went to voicemail", "voicemail"),
 }
 
 
@@ -45,7 +57,11 @@ async def main(call_id: str, scenario: str) -> None:
             row = await (
                 await conn.execute(
                     """
-                    SELECT t.goal, u.name, a.name,
+                    SELECT COALESCE(
+                               (SELECT payload->>'goal' FROM call_events
+                                WHERE call_id = c.id AND kind = 'dialing' ORDER BY ts LIMIT 1),
+                               t.goal),
+                           u.name, a.name,
                            (SELECT name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1)
                     FROM calls c JOIN tasks t ON t.id = c.task_id
                     JOIN agents a ON a.id = t.agent_id JOIN users u ON u.id = a.user_id
@@ -64,21 +80,16 @@ async def main(call_id: str, scenario: str) -> None:
                 {"speaker": speakers[role], "text": text.format(goal=goal, user=user, contact=contact)}
                 for role, text in SCENARIOS[scenario]
             ]
-            answered = bool(transcript)
-            events = [{"kind": "answered", "text": "Connected"}] if answered else []
+            reason, ended_text, call_status = ENDINGS[scenario]
+            events = [{"kind": "answered", "text": "Connected"}] if reason == "completed" else []
             events += [{"kind": "transcript_line", **line} for line in transcript]
             events.append(
-                {
-                    "kind": "ended",
-                    "text": "Call finished" if answered else "No answer",
-                    "reason": "completed" if answered else "no_answer",
-                    "duration_seconds": 8 * len(transcript),
-                }
+                {"kind": "ended", "text": ended_text, "reason": reason, "duration_seconds": 8 * len(transcript)}
             )
             async with conn.transaction():
                 await conn.execute(
                     "UPDATE calls SET transcript = %s, status = %s, ended_at = now() WHERE id = %s",
-                    (Jsonb(transcript), "ended" if answered else "no_answer", call_id),
+                    (Jsonb(transcript), call_status, call_id),
                 )
                 for event in events:
                     kind = event.pop("kind")

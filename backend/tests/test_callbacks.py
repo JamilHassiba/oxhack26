@@ -9,14 +9,25 @@ from app.tools import declared
 from tests.test_orchestrator_loop import FakeClient, call, model_says
 
 BOOKED = {
+    "result": "booked",
     "booked": True,
     "starts_at": "2026-10-25T18:00:00+00:00",
     "party_size": 4,
     "deposit_required": False,
     "deposit_amount_pence": None,
+    "offered_times": [],
     "reason": "Booked for 18:00.",
 }
-FULL = {**BOOKED, "booked": False, "starts_at": None, "reason": "Fully booked at 18:00; 20:30 offered."}
+FULL = {
+    **BOOKED,
+    "result": "fully_booked",
+    "booked": False,
+    "starts_at": None,
+    "offered_times": ["2026-10-25T20:30"],
+    "reason": "Fully booked at 18:00; 20:30 offered.",
+}
+NO_ANSWER = {**FULL, "result": "no_answer", "offered_times": [], "party_size": None, "reason": "Nobody answered."}
+VOICEMAIL = {**NO_ANSWER, "result": "voicemail", "reason": "Went to voicemail."}
 
 
 @pytest.fixture
@@ -28,7 +39,9 @@ def world(monkeypatch):
             "task_id": "task-1",
             "to_number": "+447700900123",
             "transcript": [{"speaker": "restaurant", "text": "Booked!"}],
+            "status": "ended",
             "outcome": None,
+            "contact_id": "contact-1",
             "contact_name": "The Ivy Oxford",
         },
         "task": {
@@ -45,6 +58,7 @@ def world(monkeypatch):
         "calendar": [],
         "extract": BOOKED,
         "payments": [],
+        "earlier": [],
     }
 
     async def load_call(call_id):
@@ -55,6 +69,9 @@ def world(monkeypatch):
 
     async def task_payments(task_id):
         return w["payments"]
+
+    async def earlier_calls(task_id, before_call_id):
+        return w["earlier"]
 
     async def save_call_outcome(call_id, outcome):
         w["saved_outcome"] = outcome
@@ -71,7 +88,7 @@ def world(monkeypatch):
         w["calendar"].append(kwargs)
         return {"id": "event-1", **kwargs}
 
-    for fn in (load_call, load_task, save_call_outcome, finish_task, task_payments):
+    for fn in (load_call, load_task, save_call_outcome, finish_task, task_payments, earlier_calls):
         monkeypatch.setattr(store, fn.__name__, fn)
     monkeypatch.setattr(callbacks, "extract_outcome", extract_outcome)
     monkeypatch.setattr(declared, "create_calendar_event", create_calendar_event)
@@ -178,3 +195,74 @@ def test_wrap_up_tells_gemini_the_payment_status(monkeypatch, world):
     asyncio.run(callbacks.on_call_finished("call-1"))
 
     assert "£20.00 to The Ivy Oxford: paid" in client.requests[0][0].parts[0].text
+
+
+
+@pytest.fixture
+def phone(monkeypatch):
+    """A fake place_call under the phone permission; records the calls Gemini makes."""
+    from app.orchestrator import runner
+    from app.tools.base import Tool
+
+    placed = []
+
+    async def place_call(contact_id, goal, **_):
+        placed.append((contact_id, goal))
+        return {"status": "calling", "call_id": "call-2"}
+
+    tool = Tool("place_call", "Call.", {"type": "object"}, place_call, ends_turn=True)
+    monkeypatch.setitem(runner.TOOLS_BY_PERMISSION, "phone", lambda task: [tool])
+    return placed
+
+
+def offered(monkeypatch, world):
+    """Records which tools Gemini was offered, then lets the real loop run."""
+    names = []
+    original = callbacks.run_tool_loop
+
+    async def spy(*args, tools, **kwargs):
+        names.extend(t.name for t in tools)
+        return await original(*args, tools=tools, **kwargs)
+
+    monkeypatch.setattr(callbacks, "run_tool_loop", spy)
+    return names
+
+
+def test_fully_booked_can_call_back_for_offered_time(monkeypatch, world, phone):
+    world["task"]["goal"] = "Book The Ivy for 4 tomorrow at 6pm, or later if that's full"
+    world["call"]["outcome"] = FULL
+    client = gemini(monkeypatch, model_says(call("place_call", contact_id="contact-1", goal="Book 4 at 20:30")))
+
+    asyncio.run(callbacks.on_call_finished("call-1"))
+
+    assert phone == [("contact-1", "Book 4 at 20:30")]
+    assert world["finished"] == []  # still calling; on_call_finished runs again when call 2 ends
+    assert 'contact_id "contact-1"' in client.requests[0][0].parts[0].text
+
+
+@pytest.mark.parametrize("outcome", [NO_ANSWER, FULL])
+def test_no_second_retry_after_two_calls(monkeypatch, world, phone, outcome):
+    world["call"]["outcome"] = outcome
+    world["earlier"] = [{"status": "no_answer", "outcome": NO_ANSWER}]
+    names = offered(monkeypatch, world)
+    client = gemini(monkeypatch, model_says(types.Part(text="Tried twice, nobody could book it.")))
+
+    asyncio.run(callbacks.on_call_finished("call-1"))
+
+    assert "place_call" not in names
+    assert world["finished"] == [("task-1", TaskStatus.FAILED, "Tried twice, nobody could book it.")]
+    prompt = client.requests[0][0].parts[0].text
+    assert "Earlier calls for this task: Nobody answered." in prompt
+    assert "You can't make another call" in prompt
+
+
+@pytest.mark.parametrize("outcome", [VOICEMAIL, BOOKED])
+def test_no_call_back_after_voicemail_or_booking(monkeypatch, world, phone, outcome):
+    world["call"]["outcome"] = outcome
+    names = offered(monkeypatch, world)
+    gemini(monkeypatch, model_says(types.Part(text="Summary.")))
+
+    asyncio.run(callbacks.on_call_finished("call-1"))
+
+    assert "place_call" not in names and "lookup_contact" not in names
+    assert phone == []

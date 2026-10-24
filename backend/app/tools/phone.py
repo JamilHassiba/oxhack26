@@ -35,7 +35,11 @@ async def stand_in_start_call(brief: CallBrief) -> str:
         ).fetchone()
         await conn.execute(
             "INSERT INTO call_events (ts, call_id, kind, payload) VALUES (clock_timestamp(), %s, 'dialing', %s)",
-            (call_id, Jsonb({"text": "Calling (practice run: no real phone call)", "to_number": brief.to_number})),
+            (
+                call_id,
+                # Extra fields are allowed (EVENTS.md rule 4); fake_call_end uses `goal` for its transcript.
+                Jsonb({"text": "Calling (practice run: no real phone call)", "to_number": brief.to_number, "goal": brief.goal}),
+            ),
         )
     return str(call_id)
 

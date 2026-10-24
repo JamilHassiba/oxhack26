@@ -133,8 +133,11 @@ async def load_call(call_id: str) -> dict[str, Any]:
             """
             SELECT c.id::text AS id, c.task_id::text AS task_id, c.to_number, c.status,
                    c.transcript, c.summary, c.outcome,
-                   (SELECT name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1) AS contact_name
+                   ct.id::text AS contact_id, ct.name AS contact_name
             FROM calls c
+            LEFT JOIN LATERAL (
+                SELECT id, name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1
+            ) ct ON true
             WHERE c.id = %s
             """,
             (call_id,),
@@ -234,5 +237,20 @@ async def recent_tasks(agent_id: str, before_task_id: str, limit: int = 5) -> li
             ORDER BY created_at
             """,
             (agent_id, before_task_id, before_task_id, limit),
+        )
+        return await cur.fetchall()
+
+
+async def earlier_calls(task_id: str, before_call_id: str) -> list[dict[str, Any]]:
+    """The task's other calls before this one, with their outcomes (for the second call's summary)."""
+    async with db.get_pool().connection() as conn:
+        cur = conn.cursor(row_factory=dict_row)
+        await cur.execute(
+            """
+            SELECT status, outcome FROM calls
+            WHERE task_id = %s AND id <> %s AND started_at <= (SELECT started_at FROM calls WHERE id = %s)
+            ORDER BY started_at
+            """,
+            (task_id, before_call_id, before_call_id),
         )
         return await cur.fetchall()
