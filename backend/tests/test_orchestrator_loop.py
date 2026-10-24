@@ -92,3 +92,15 @@ def test_max_steps():
     client = FakeClient(*[model_says(call("nope")) for _ in range(2)])
     with pytest.raises(OrchestratorError):
         run(client, [], max_steps=2)
+
+
+def test_failed_ends_turn_tool_does_not_pause():
+    async def place_call(contact_id: str) -> dict:
+        return {"error": "Unknown contact_id"}
+
+    place_call_tool = Tool("place_call", "Call someone.", {"type": "object"}, place_call, ends_turn=True)
+    client = FakeClient(model_says(call("place_call", contact_id="x")), model_says(types.Part(text="Couldn't call.")))
+    result = run(client, [place_call_tool])
+
+    assert result.paused_on is None
+    assert result.text == "Couldn't call."

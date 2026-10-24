@@ -84,3 +84,41 @@ async def finish_task(task_id: str, status: TaskStatus, summary: str) -> None:
             " SELECT agent_id, id, 'assistant', %s FROM tasks WHERE id = %s",
             (summary, task_id),
         )
+
+
+async def set_task_status(task_id: str, status: TaskStatus) -> None:
+    async with db.get_pool().connection() as conn:
+        await conn.execute("UPDATE tasks SET status = %s, updated_at = now() WHERE id = %s", (status, task_id))
+
+
+async def find_contacts(query: str, limit: int = 5) -> list[dict[str, Any]]:
+    """Contacts whose name contains `query` (case-insensitive). Phone numbers are left out on purpose."""
+    async with db.get_pool().connection() as conn:
+        cur = conn.cursor(row_factory=dict_row)
+        await cur.execute(
+            "SELECT id::text AS contact_id, name, notes FROM contacts WHERE name ILIKE %s ORDER BY name LIMIT %s",
+            (f"%{query.strip()}%", limit),
+        )
+        return await cur.fetchall()
+
+
+async def list_contact_names() -> list[str]:
+    async with db.get_pool().connection() as conn:
+        return [row[0] for row in await (await conn.execute("SELECT name FROM contacts ORDER BY name")).fetchall()]
+
+
+async def get_contact(contact_id: str) -> dict[str, Any] | None:
+    try:
+        UUID(contact_id)
+    except ValueError:
+        return None
+    async with db.get_pool().connection() as conn:
+        cur = conn.cursor(row_factory=dict_row)
+        await cur.execute("SELECT id::text AS id, name, phone FROM contacts WHERE id = %s", (contact_id,))
+        return await cur.fetchone()
+
+
+async def count_calls(task_id: str) -> int:
+    async with db.get_pool().connection() as conn:
+        (n,) = await (await conn.execute("SELECT count(*) FROM calls WHERE task_id = %s", (task_id,))).fetchone()
+    return n

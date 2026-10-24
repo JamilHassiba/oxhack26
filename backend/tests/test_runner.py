@@ -67,7 +67,7 @@ def test_paused_task_is_left_for_on_call_finished(monkeypatch, finished):
         return {"call_id": "call-1"}
 
     tool = Tool("place_call", "Call.", {"type": "object"}, place_call, ends_turn=True)
-    monkeypatch.setattr(runner, "TOOLS_BY_PERMISSION", {"phone": [tool]})
+    monkeypatch.setattr(runner, "TOOLS_BY_PERMISSION", {"phone": lambda task: [tool]})
     use_client(monkeypatch, FakeClient(model_says(call("place_call"))))
 
     asyncio.run(runner.run_task("task-1"))
@@ -77,9 +77,13 @@ def test_paused_task_is_left_for_on_call_finished(monkeypatch, finished):
 
 def test_only_permitted_tools_are_declared(monkeypatch):
     phone, email = object(), object()
-    monkeypatch.setattr(runner, "TOOLS_BY_PERMISSION", {"phone": [phone], "email": [email]})
+    monkeypatch.setattr(runner, "TOOLS_BY_PERMISSION", {"phone": lambda t: [phone], "email": lambda t: [email]})
 
-    assert runner.tools_for(["phone", "payments"]) == [phone]
+    assert runner.tools_for({**TASK, "tools": ["phone", "payments"]}) == [phone]
+
+
+def test_phone_permission_gives_both_call_tools():
+    assert [t.name for t in runner.tools_for(TASK)] == ["lookup_contact", "place_call"]
 
 
 def test_prompt_says_which_tools_exist():
