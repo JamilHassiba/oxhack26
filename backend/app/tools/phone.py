@@ -7,6 +7,8 @@ numbers: place_call looks the number up itself, so the model can't dial a number
 import logging
 from typing import Any
 
+from psycopg.types.json import Jsonb
+
 from app import db
 from app.contracts import CallBrief, TaskStatus
 from app.orchestrator import store
@@ -23,14 +25,18 @@ MAX_CALLS_PER_TASK = 2
 
 
 async def stand_in_start_call(brief: CallBrief) -> str:
-    """Stand-in for Jamil's start_call: records the call like his stub will, but dials nobody."""
+    """Stand-in for Jamil's start_call: records the call and its `dialing` event (docs/EVENTS.md), dials nobody."""
     log.warning("start_call stand-in: no real phone call is made (task %s)", brief.task_id)
-    async with db.get_pool().connection() as conn:
+    async with db.get_pool().connection() as conn, conn.transaction():
         (call_id,) = await (
             await conn.execute(
                 "INSERT INTO calls (task_id, to_number) VALUES (%s, %s) RETURNING id", (brief.task_id, brief.to_number)
             )
         ).fetchone()
+        await conn.execute(
+            "INSERT INTO call_events (ts, call_id, kind, payload) VALUES (clock_timestamp(), %s, 'dialing', %s)",
+            (call_id, Jsonb({"text": "Calling (practice run: no real phone call)", "to_number": brief.to_number})),
+        )
     return str(call_id)
 
 

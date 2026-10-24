@@ -1,6 +1,7 @@
 """Stand-in for Jamil's post-call webhook, for testing without a real phone call. Owner: Alex.
 
-Writes a made-up transcript onto a call (like the webhook will), then runs on_call_finished(call_id).
+Writes a made-up transcript onto a call and its call events (answered, transcript lines, ended, in the
+docs/EVENTS.md format, so the website's timeline shows them), then runs on_call_finished(call_id).
 
     cd backend
     .venv/Scripts/python -m scripts.fake_call_end <call_id> booked      # table confirmed, £20 deposit
@@ -44,7 +45,7 @@ async def main(call_id: str, scenario: str) -> None:
             row = await (
                 await conn.execute(
                     """
-                    SELECT t.goal, u.name,
+                    SELECT t.goal, u.name, a.name,
                            (SELECT name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1)
                     FROM calls c JOIN tasks t ON t.id = c.task_id
                     JOIN agents a ON a.id = t.agent_id JOIN users u ON u.id = a.user_id
@@ -55,15 +56,36 @@ async def main(call_id: str, scenario: str) -> None:
             ).fetchone()
             if row is None:
                 raise SystemExit(f"No call with id {call_id}")
-            goal, user, contact = row
+            goal, user, agent, contact = row
+            contact = contact or "Restaurant"
+            # EVENTS.md: speaker is the agent's name for the AI, the contact's name for the other person.
+            speakers = {"agent": agent, "restaurant": contact}
             transcript = [
-                {"speaker": speaker, "text": text.format(goal=goal, user=user, contact=contact or "Restaurant")}
-                for speaker, text in SCENARIOS[scenario]
+                {"speaker": speakers[role], "text": text.format(goal=goal, user=user, contact=contact)}
+                for role, text in SCENARIOS[scenario]
             ]
-            await conn.execute(
-                "UPDATE calls SET transcript = %s, status = %s, ended_at = now() WHERE id = %s",
-                (Jsonb(transcript), "no_answer" if scenario == "no_answer" else "ended", call_id),
+            answered = bool(transcript)
+            events = [{"kind": "answered", "text": "Connected"}] if answered else []
+            events += [{"kind": "transcript_line", **line} for line in transcript]
+            events.append(
+                {
+                    "kind": "ended",
+                    "text": "Call finished" if answered else "No answer",
+                    "reason": "completed" if answered else "no_answer",
+                    "duration_seconds": 8 * len(transcript),
+                }
             )
+            async with conn.transaction():
+                await conn.execute(
+                    "UPDATE calls SET transcript = %s, status = %s, ended_at = now() WHERE id = %s",
+                    (Jsonb(transcript), "ended" if answered else "no_answer", call_id),
+                )
+                for event in events:
+                    kind = event.pop("kind")
+                    await conn.execute(
+                        "INSERT INTO call_events (ts, call_id, kind, payload) VALUES (clock_timestamp(), %s, %s, %s)",
+                        (call_id, kind, Jsonb(event)),
+                    )
         print(f"Saved a fake '{scenario}' transcript on call {call_id}; running on_call_finished...")
         await on_call_finished(call_id)
         print("Done. Check the task in the app (or GET /tasks/{task_id}).")
