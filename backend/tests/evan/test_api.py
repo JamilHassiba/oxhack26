@@ -115,6 +115,36 @@ def test_empty_history_and_openapi(client):
     )
 
 
+def test_chat_integration_respects_active_and_archived_agents(client, monkeypatch):
+    started = []
+
+    async def run_task(task_id):
+        started.append(task_id)
+
+    # Test the actual chat/store SQL without calling Gemini or any provider.
+    monkeypatch.setattr("app.routers.chat.run_task", run_task)
+    agent = create(client)
+    path = "/agents/" + agent["id"]
+    response = client.post(path + "/chat", json={"message": "Book dinner"})
+    assert response.status_code == 202
+    task_id = response.json()["task_id"]
+    assert started == [task_id]
+    assert client.get("/tasks/" + task_id).json()["status"] == "planning"
+    assert client.post(path + "/chat", json={"message": "Again"}).status_code == 409
+    assert client.delete(path).status_code == 409
+
+    archived = create(client)
+    archived_path = "/agents/" + archived["id"]
+    assert client.delete(archived_path).status_code == 204
+    assert (
+        client.post(
+            archived_path + "/chat", json={"message": "Book dinner"}
+        ).status_code
+        == 404
+    )
+    assert started == [task_id]
+
+
 def test_archive_lock_prevents_racing_task_insertion(client, database):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Event

@@ -17,9 +17,9 @@ Verification: 13 tests against a real disposable PostgreSQL database (provider r
 
 ## Local integration completed
 
-Main through `762bd45` is merged without conflicts. The shared app now registers Evan's routers with one import and one registration call. Alex's config/schemas/orchestrator and Jamil's DB pool/events/base migration are unchanged.
+Main through `0de809c` is integrated, including Alex’s chat endpoint. A route-registration conflict was resolved by keeping both chat and Evan’s routers. The shared app now registers Evan's routers with one import and one registration call. Alex's config/schemas/orchestrator and Jamil's DB pool/events/base migration are unchanged.
 
-All 21 backend tests pass. Database tests now use the shared app's real pool and Jamil's actual base migration, including defaults, constraints and seed data, rather than a duplicate test schema. Only TimescaleDB extension setup and hypertable conversion are omitted for plain local PostgreSQL.
+All 31 backend tests pass, including a new real-database chat/archival integration check. Database tests now use the shared app's real pool and Jamil's actual base migration, including defaults, constraints and seed data, rather than a duplicate test schema. Chat now rejects archived agents with 404 before inserting a task. Only TimescaleDB extension setup and hypertable conversion are omitted for plain local PostgreSQL.
 
 A browser check passed against React → Vite proxy → shared FastAPI → disposable PostgreSQL: creating an agent, saving tool permissions, retaining them after reload, reading empty history, and exporting ICS. `frontend/src/openapi.d.ts` is generated from the shared app's currently registered routes.
 
@@ -27,6 +27,6 @@ A browser check passed against React → Vite proxy → shared FastAPI → dispo
 
 1. **Vultr deferred at Evan's request.** The account displays $100 promotional credit but requires a linked payment method. No VM was created and no card was linked. Continue using `docs/LOCAL_DEVELOPMENT.md`.
 2. Apply both migrations to the shared Tiger database and validate TimescaleDB behavior; local table/constraint checks passed.
-3. Integrate the remaining chat/payment/voice/analytics routes as their owners publish them. Regenerate the OpenAPI snapshot afterward.
+3. Integrate the remaining payment/voice/analytics routes as their owners publish them. Regenerate the OpenAPI snapshot afterward.
 4. Configure provider credentials, then verify real chat/call/payment/email completion. Provider requests in tests are mocked; no real email was sent.
 5. Rehearse the real-service flow three times, add real evidence/URLs, then publish and submit. The committed fallback video is explicitly simulated.

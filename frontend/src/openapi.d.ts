@@ -126,6 +126,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/agents/{agent_id}/chat': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Chat
+     * @description Starts a task for the message and returns its id at once; Gemini works on it in the background.
+     */
+    post: operations['chat_agents__agent_id__chat_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -218,6 +238,16 @@ export interface components {
       kind:
         'dialing' | 'ringing' | 'answered' | 'transcript_line' | 'tool_call' | 'payment' | 'ended';
       payload?: components['schemas']['EventPayload'];
+    };
+    /** ChatRequest */
+    ChatRequest: {
+      /** Message */
+      message: string;
+    };
+    /** ChatResponse */
+    ChatResponse: {
+      /** Task Id */
+      task_id: string;
     };
     /** EventPayload */
     EventPayload: {
@@ -579,6 +609,41 @@ export interface operations {
         };
         content: {
           'text/calendar': string;
+        };
+      };
+    };
+  };
+  chat_agents__agent_id__chat_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        agent_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ChatRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ChatResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
         };
       };
     };
