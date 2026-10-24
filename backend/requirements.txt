@@ -8,3 +8,6 @@ sse-starlette>=2.1
 google-genai>=1.0
 stripe>=11.0
 resend>=2.0
+
+# dev / tests
+pytest>=8.0
