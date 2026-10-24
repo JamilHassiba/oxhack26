@@ -4,7 +4,7 @@ Web app where users create named AI agents, give them tools (phone, email, calen
 
 Sponsor targets: **ElevenLabs** (phone voice), **Gemini API** (orchestrator brain), **Tiger Data** (Postgres + hypertable event log), **Vultr** (hosting), plus the DEV writing challenge.
 
-Stack: FastAPI, Postgres (Tiger Cloud), React + TypeScript.
+Stack: FastAPI, Postgres (Tiger Cloud), React + TypeScript (Vite). No Docker.
 
 ---
 
@@ -114,7 +114,17 @@ Libs: Vite, React Router, TanStack Query, Tailwind. Generate a typed client from
 
 ## 7. Deployment (Vultr)
 
-One Vultr VM, `docker compose`: `backend`, `frontend` (static build served by Caddy), `caddy` (HTTPS + reverse proxy). Postgres stays on Tiger Cloud. A public HTTPS domain is required for ElevenLabs webhooks, so deploy a hello-world early rather than at the end. For local dev use a tunnel (ngrok / cloudflared).
+No Docker. One Ubuntu VM on Vultr:
+
+- **Backend:** repo cloned to the VM, Python virtualenv, uvicorn run as a `systemd` service (`deploy/oxhack-api.service`) so it restarts on crash and reboot.
+- **Frontend:** `npm run build` (Vite) produces static files in `frontend/dist`.
+- **Caddy** (`deploy/Caddyfile`): automatic HTTPS, serves `frontend/dist`, proxies `/api/*` to uvicorn.
+- **Deploy:** `deploy/deploy.sh` runs git pull, installs dependencies, runs migrations, builds the frontend and restarts the service.
+- **Database:** Tiger Cloud, used for both local development and production. No local Postgres needed.
+
+A public HTTPS domain is required for ElevenLabs webhooks, so deploy a hello-world early rather than at the end.
+
+Local development: backend with `uvicorn app.main:app --reload` in a virtualenv; frontend with `npm run dev` (Vite dev server on port 5173, with a Vite proxy sending `/api` to `localhost:8000`). Use a tunnel (ngrok / cloudflared) to receive ElevenLabs webhooks locally.
 
 ## 8. Risks and mitigations
 
@@ -133,15 +143,15 @@ Split by ownership (details per person in [PLAN.md](PLAN.md)):
 
 - **Jamil: Voice & infra.** ElevenLabs + Twilio, call lifecycle and webhooks, Vultr deploy, Tiger Data schema/migrations.
 - **Alex: Orchestrator & tools.** Gemini loop, tool layer (phone wrapper, email, calendar, payments), chat/agents/tasks API.
-- **Evan: Frontend.** Everything in React + TS, SSE live view, analytics page, then demo polish and the DEV post.
+- **Evan: Frontend.** Everything in React + TS (Vite), SSE live view, analytics page, then demo polish and the DEV post.
 
 The shared contract is the OpenAPI schema plus the `call_events` kinds in section 4. Agree both in the first hour so the three can work in parallel.
 
 **Phase 0: Spikes and skeleton (hours 0–3)**
 - Jamil: ElevenLabs agent + Twilio number; place one outbound call from a script to a teammate's phone; inspect what the API gives during/after the call (transcript timing). Tiger Cloud DB and schema + hypertable migrations.
 - Alex: FastAPI skeleton (shared with Jamil for config/db), Gemini function-calling hello world with one fake tool.
-- Evan: Vite+TS app, routing, Tailwind, API client shell against mocked responses.
-- Together (end of phase): docker compose and Vultr VM + domain with hello-world deployed.
+- Evan: Vite + React + TS app in `frontend/`, routing, Tailwind, API client shell against mocked responses.
+- Together (end of phase): Vultr VM + domain with Caddy and the systemd service, hello-world deployed.
 
 **Phase 1: Vertical slice (hours 3–10)**
 Chat → Gemini → `place_call` → call → post-call webhook → summary shown in the UI. No payments/calendar yet. End of phase: the end-to-end demo works for one scenario.

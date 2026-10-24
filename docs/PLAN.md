@@ -4,7 +4,7 @@ Companion to [DESIGN.md](DESIGN.md). Read that first for architecture, data mode
 
 | | Jamil: Voice & Infra | Alex: Orchestrator & Tools | Evan: Frontend |
 |---|---|---|---|
-| Owns | ElevenLabs, Twilio, webhooks, call lifecycle, Tiger Data, Vultr | Gemini loop, tool layer, chat/agents/tasks API | All React + TS UI, SSE, demo polish, DEV post |
+| Owns | ElevenLabs, Twilio, webhooks, call lifecycle, Tiger Data, Vultr | Gemini loop, tool layer, chat/agents/tasks API | All React + TS (Vite) UI, SSE, demo polish, DEV post |
 | Sponsors | ElevenLabs, Tiger Data, Vultr | Gemini API | DEV challenge, demo/pitch |
 | Main dirs | `backend/app/services/elevenlabs.py`, `routers/webhooks.py`, `migrations/`, `deploy/` | `backend/app/orchestrator/`, `tools/`, `routers/{agents,chat,tasks,payments}.py` | `frontend/` |
 
@@ -28,7 +28,7 @@ Companion to [DESIGN.md](DESIGN.md). Read that first for architecture, data mode
 - `POST /webhooks/elevenlabs/post-call`: verify signature, store transcript and analysis on `calls`, emit `ended` event, trigger Alex's `on_call_finished(call_id)`.
 - Write `call_events` for every lifecycle step (dialing, answered, ended, plus transcript lines via polling if the spike allows).
 - Phone allowlist and call duration cap in config.
-- Deploy: Vultr VM, docker compose (backend, frontend static, Caddy), domain + HTTPS. Webhook URL registered with ElevenLabs. CI-less deploy script (`deploy/deploy.sh`).
+- Deploy (no Docker): Ubuntu VM on Vultr, backend in a virtualenv run by systemd (`deploy/oxhack-api.service`), Caddy for HTTPS, the Vite frontend build and the `/api` proxy (`deploy/Caddyfile`), domain pointed at the VM. Webhook URL registered with ElevenLabs. Deploy script (`deploy/deploy.sh`).
 
 **Phase 2 (h10–18)**
 - Mid-call server tools: `POST /webhooks/elevenlabs/tools/{name}` for `request_payment_approval` and `check_calendar`. Hold the request until the user approves (poll the `payments` row, with timeout) or return "pending" and let the agent say it will follow up.
@@ -75,7 +75,7 @@ Companion to [DESIGN.md](DESIGN.md). Read that first for architecture, data mode
 ## Evan: Frontend
 
 **Phase 0 (h0–3)**
-- Vite + React + TS + Tailwind + React Router + TanStack Query. Layout shell with nav (Agents, Chat, Calendar, Analytics).
+- Create the app in `frontend/` with `npm create vite@latest frontend -- --template react-ts`, then add Tailwind, React Router and TanStack Query. Configure the Vite dev proxy so `/api` goes to the backend on `localhost:8000`. Layout shell with nav (Agents, Chat, Calendar, Analytics).
 - Typed API client generated from OpenAPI; local mock server or MSW with fixtures so work isn't blocked on the backend.
 
 **Phase 1 (h3–10)**
