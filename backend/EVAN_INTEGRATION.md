@@ -1,26 +1,26 @@
 # Evan: API, tools, and deployment handoff
 
-Frontend features were committed/pushed first as `a102ce7` on `frontend`. This follow-up is on `codex/evan-api-deploy`. It does not modify Alex's shared `main.py`, `config.py`, `schemas.py`, or orchestrator, or Jamil's `db.py`, event services, and base migration.
+Frontend features were committed/pushed first as `a102ce7` on `frontend`. This follow-up is on `codex/evan-api-deploy`. Main through `762bd45` is merged. Integration adds only route registration to the shared `main.py`; Alex's config/schemas/orchestrator and Jamil's DB/event/base migration implementations are unchanged.
 
 ## Run and register
 
 Install `pip install -r requirements-evan.txt`. It adds FastAPI >=0.121 so yielded DB dependencies use function scope and commit **before** an HTTP response is sent.
 
-Until Alex's app is merged, this command provides a health-check app and Evan's owned routes:
+Run the shared app, which now registers Evan's routes:
 
 ```sh
 cd backend
-uvicorn app.evan.app:app --host 127.0.0.1 --port 8000
+uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Once Alex's shared app is merged, add these lines to his `create_app()` (he owns that file):
+The shared `create_app()` includes this registration:
 
 ```python
 from app.evan import register_routes
 register_routes(app)
 ```
 
-Register once. The adapters use the shared `app.db.get_pool()` when available. The smoke app has its own pool only for standalone operation. No fake chat, payment, voice, or analytics endpoints are installed. Routes have no `/api` prefix; Caddy/Vite strip it.
+Register once. The adapters use the shared `app.db.get_pool()`. `app.evan.app:app` remains available as a standalone smoke app. No fake chat, payment, voice, or analytics endpoints are installed. Routes have no `/api` prefix; Caddy/Vite strip it.
 
 ## Database
 
@@ -53,6 +53,6 @@ pip install -r requirements-evan-test.txt
 PYTHONPATH=. TEST_DATABASE_URL=postgresql://.../disposable_test_db python -m pytest tests/evan -q
 ```
 
-DB tests create a random schema, seed a demo user and agreed base tables, apply the additive migration, and drop only that schema afterwards. The tests exercise real PostgreSQL SQL/joins/transactions, archival guards, tool permissions, calendar retries/export, and mocked provider failures. Do not use a production database for tests. Without TEST_DATABASE_URL, DB tests are skipped explicitly.
+DB tests create a random schema, apply Jamil's actual base tables and seed data followed by the additive migration, and drop only that schema afterwards. On plain PostgreSQL only the TimescaleDB extension and hypertable conversion are omitted. Tests use the shared app's real connection pool and exercise SQL/joins/transactions, archival guards, tool permissions, calendar retries/export, and mocked provider failures. Do not use a production database for tests. Without TEST_DATABASE_URL, DB tests are skipped explicitly.
 
-The shared Tiger Cloud schema, full app registration, Gemini/voice endpoints, production environment, and domain are still external integration steps. After those land, run `npm run api:generate`, reconcile the full generated schema, and rehearse three times. Deployment instructions are in `deploy/README.md`.
+Local integration passed through React, Vite's proxy, the shared FastAPI app, and PostgreSQL: agent creation, permission persistence across reload, empty history, and ICS export. `npm run api:generate` produced `frontend/src/openapi.d.ts` for the currently registered health/agents/tasks/calendar routes. Regenerate when chat/payment/voice/analytics routes land. Tiger Cloud/Timescale behavior and real providers remain unverified. Vultr is deferred at the user's request; see `docs/LOCAL_DEVELOPMENT.md` for continuing locally.

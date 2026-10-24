@@ -15,17 +15,18 @@ Commit `a102ce7` on `frontend`: searchable/filterable task history and task deta
 
 Verification: 13 tests against a real disposable PostgreSQL database (provider requests mocked), Python formatting/import checks, OpenAPI generation for the owned routes, Caddy configuration validation using the official binary, and shell syntax checks. These are not claims of successful Vultr deployment or real phone/email integration.
 
-## Shared files left untouched
+## Local integration completed
 
-Alex's shared app/config/schemas/orchestrator, Jamil's DB pool/event/voice/base migration, and both design/plan documents remain unchanged by this implementation. The five assigned router/tool files are implemented in place; support code is namespaced under `app/evan/`. The extra migration is separate from Jamil's base migration.
+Main through `762bd45` is merged without conflicts. The shared app now registers Evan's routers with one import and one registration call. Alex's config/schemas/orchestrator and Jamil's DB pool/events/base migration are unchanged.
 
-Alex's current `p2/backend-skeleton` branch contains stale ownership-comment changes in these five stub files. If merging it produces comment conflicts, keep Evan's implemented router/tool versions; the old branch has no implementation in those stubs. The substantive shared app/db/config code is untouched here.
+All 21 backend tests pass. Database tests now use the shared app's real pool and Jamil's actual base migration, including defaults, constraints and seed data, rather than a duplicate test schema. Only TimescaleDB extension setup and hypertable conversion are omitted for plain local PostgreSQL.
 
-## Required integration and external work
+A browser check passed against React → Vite proxy → shared FastAPI → disposable PostgreSQL: creating an agent, saving tool permissions, retaining them after reload, reading empty history, and exporting ICS. `frontend/src/openapi.d.ts` is generated from the shared app's currently registered routes.
 
-1. Provision the Vultr VM and domain; none exists yet. Follow `deploy/README.md`; use HTTP smoke deployment before the real HTTPS domain if helpful.
-2. Merge Alex's shared app and register the owned routers with `app.evan.register_routes(app)`, as documented in `backend/EVAN_INTEGRATION.md`. The current standalone app deliberately exposes only health and Evan's routes.
-3. Apply Jamil's base migration, verify its actual columns against the agreed design, then apply `100_evan_agent_archival_email.sql` through the shared migration process.
-4. Configure the shared DB and provider credentials. No real email was sent in tests.
-5. Generate the complete OpenAPI types after all shared routers are registered, then verify real chat/call/payment/email completion from the frontend.
-6. Rehearse the deployed real-service flow three times, add the real evidence/URLs, then publish and submit. The video currently committed is explicitly simulated.
+## Deferred and remaining work
+
+1. **Vultr deferred at Evan's request.** The account displays $100 promotional credit but requires a linked payment method. No VM was created and no card was linked. Continue using `docs/LOCAL_DEVELOPMENT.md`.
+2. Apply both migrations to the shared Tiger database and validate TimescaleDB behavior; local table/constraint checks passed.
+3. Integrate the remaining chat/payment/voice/analytics routes as their owners publish them. Regenerate the OpenAPI snapshot afterward.
+4. Configure provider credentials, then verify real chat/call/payment/email completion. Provider requests in tests are mocked; no real email was sent.
+5. Rehearse the real-service flow three times, add real evidence/URLs, then publish and submit. The committed fallback video is explicitly simulated.

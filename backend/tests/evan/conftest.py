@@ -6,12 +6,11 @@ from pathlib import Path
 from uuid import uuid4
 import psycopg
 from psycopg import sql
+from psycopg.conninfo import make_conninfo
 import pytest
 from fastapi.testclient import TestClient
-from app.evan.app import create_app
-from app.evan.database import get_repository
-from app.evan.repository import Repository
-from app.evan.settings import EvanSettings
+from app.main import create_app
+from app.config import Settings
 
 USER_ID = "00000000-0000-0000-0000-000000000001"
 
@@ -26,13 +25,22 @@ def database(monkeypatch):
     with psycopg.connect(url, autocommit=True) as conn:
         conn.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
         conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
-        conn.execute((Path(__file__).parent / "schema.sql").read_text())
+        # Exercise Jamil's actual tables, defaults, constraints and seed data.
+        # Plain local PostgreSQL cannot install TimescaleDB: only its extension
+        # and hypertable conversion are omitted; the call_events table is real.
+        base = (root / "migrations/001_init.sql").read_text()
+        base = base.replace("CREATE EXTENSION IF NOT EXISTS timescaledb;", "")
+        base = base.replace(
+            "SELECT create_hypertable('call_events', by_range('ts', INTERVAL '1 day'));",
+            "",
+        )
+        conn.execute(base)
         conn.execute(
             (root / "migrations/100_evan_agent_archival_email.sql").read_text()
         )
         conn.execute(
-            "INSERT INTO users (id,email,name) VALUES (%s,%s,%s)",
-            (USER_ID, "demo@example.com", "Demo User"),
+            "UPDATE users SET email = %s WHERE id = %s",
+            ("demo@example.com", USER_ID),
         )
     options = f"-csearch_path={schema}"
 
@@ -54,16 +62,19 @@ def database(monkeypatch):
 
 @pytest.fixture
 def client(database):
-    connection, _ = database
+    _, sync = database
+    with sync() as conn:
+        schema = conn.execute("SELECT current_schema()").fetchone()[0]
     app = create_app(
-        EvanSettings(database_url="", resend_api_key="", email_from="", _env_file=None)
+        Settings(
+            database_url=make_conninfo(
+                os.environ["TEST_DATABASE_URL"], options=f"-csearch_path={schema}"
+            ),
+            gemini_api_key="",
+            _env_file=None,
+        )
     )
-
-    async def repository():
-        async with connection() as conn:
-            yield Repository(conn)
-
-    app.dependency_overrides[get_repository] = repository
-    # No production lifespan/pool or provider is opened by this test client.
+    # Exercise the shared app lifecycle and pool, using only the isolated schema.
     with TestClient(app) as client:
+        assert client.get("/health").json()["db"] == "ok"
         yield client

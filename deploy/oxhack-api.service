@@ -9,7 +9,7 @@ User=concierge
 Group=concierge
 WorkingDirectory=/opt/concierge/current/backend
 Environment=PYTHONUNBUFFERED=1
-Environment=BACKEND_APP=app.evan.app:app
+Environment=BACKEND_APP=app.main:app
 EnvironmentFile=/etc/concierge/api.env
 ExecStart=/opt/concierge/current/.venv/bin/python -m uvicorn ${BACKEND_APP} --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1
 Restart=on-failure

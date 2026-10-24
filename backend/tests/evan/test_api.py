@@ -77,11 +77,11 @@ def test_joined_task_shape_and_server_history(client, database):
     call, older = str(uuid4()), str(uuid4())
     with database[1]() as conn:
         conn.execute(
-            "INSERT INTO calls (id,task_id,status,started_at,transcript) VALUES (%s,%s,'ended','2026-10-24T10:00Z',%s)",
+            "INSERT INTO calls (id,task_id,to_number,status,started_at,transcript) VALUES (%s,%s,'+440000000000','ended','2026-10-24T10:00Z',%s)",
             (older, task, Jsonb([])),
         )
         conn.execute(
-            "INSERT INTO calls (id,task_id,status,started_at,transcript) VALUES (%s,%s,'ended','2026-10-24T11:00Z',%s)",
+            "INSERT INTO calls (id,task_id,to_number,status,started_at,transcript) VALUES (%s,%s,'+440000000000','ended','2026-10-24T11:00Z',%s)",
             (call, task, Jsonb([{"speaker": "Restaurant", "text": "Confirmed"}])),
         )
         conn.execute(

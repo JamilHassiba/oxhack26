@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
 from app.config import Settings, get_settings
+from app.evan import register_routes
 from app.routers import health
 
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +33,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health.router)
+    register_routes(app)
     return app
 
 
