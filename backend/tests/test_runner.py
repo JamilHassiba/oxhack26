@@ -8,6 +8,10 @@ from app.orchestrator import runner, store
 from app.tools.base import Tool
 from tests.test_orchestrator_loop import FakeClient, call, model_says
 
+class Recorded(list):
+    previous: list
+
+
 TASK = {
     "id": "task-1",
     "goal": "Book a table for 4",
@@ -22,15 +26,21 @@ TASK = {
 
 @pytest.fixture
 def finished(monkeypatch):
-    calls = []
+    calls = Recorded()
+    calls.previous = []
 
     async def load_task(task_id):
         return TASK
+
+    async def recent_tasks(agent_id, before_task_id, limit=5):
+        assert (agent_id, before_task_id) == ("agent-1", "task-1")
+        return calls.previous
 
     async def finish_task(task_id, status, summary):
         calls.append((task_id, status, summary))
 
     monkeypatch.setattr(store, "load_task", load_task)
+    monkeypatch.setattr(store, "recent_tasks", recent_tasks)
     monkeypatch.setattr(store, "finish_task", finish_task)
     return calls
 
@@ -94,3 +104,28 @@ def test_prompt_says_which_tools_exist():
 
     assert "Your tools for this task: place_call" in with_tools
     assert "You have no tools for this task" in without
+
+
+def test_earlier_tasks_come_before_the_new_message(monkeypatch, finished):
+    finished.previous = [
+        {"goal": "Book The Ivy for 4 at 6pm", "status": "failed", "summary": "Fully booked at 18:00; 20:30 offered."},
+        {"goal": "What's my next booking?", "status": "done", "summary": "You have nothing booked yet."},
+    ]
+    client = FakeClient(model_says(types.Part(text="Calling The Ivy for 20:30.")))
+    use_client(monkeypatch, client)
+
+    asyncio.run(runner.run_task("task-1"))
+
+    sent = [(c.role, c.parts[0].text) for c in client.requests[0]]
+    assert sent == [
+        ("user", "Book The Ivy for 4 at 6pm"),
+        ("model", "(This task did not succeed.) Fully booked at 18:00; 20:30 offered."),
+        ("user", "What's my next booking?"),
+        ("model", "You have nothing booked yet."),
+        ("user", "Book a table for 4"),
+    ]
+
+
+def test_long_summaries_are_cut(monkeypatch):
+    contents = runner.history_contents([{"goal": "g", "status": "done", "summary": "x" * 5000}])
+    assert len(contents[1].parts[0].text) == runner.MAX_SUMMARY_CHARS

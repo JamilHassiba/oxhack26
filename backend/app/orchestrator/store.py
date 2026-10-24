@@ -217,3 +217,22 @@ async def task_payments(task_id: str) -> list[dict[str, Any]]:
             f"SELECT {PAYMENT_COLUMNS} FROM payments WHERE task_id = %s ORDER BY created_at", (task_id,)
         )
         return await cur.fetchall()
+
+
+async def recent_tasks(agent_id: str, before_task_id: str, limit: int = 5) -> list[dict[str, Any]]:
+    """The agent's last few finished tasks before this one, oldest first: context for follow-up messages."""
+    async with db.get_pool().connection() as conn:
+        cur = conn.cursor(row_factory=dict_row)
+        await cur.execute(
+            """
+            SELECT goal, status, summary FROM (
+                SELECT goal, status, summary, created_at FROM tasks
+                WHERE agent_id = %s AND id <> %s AND status IN ('done', 'failed') AND summary IS NOT NULL
+                  AND created_at <= (SELECT created_at FROM tasks WHERE id = %s)
+                ORDER BY created_at DESC LIMIT %s
+            ) recent
+            ORDER BY created_at
+            """,
+            (agent_id, before_task_id, before_task_id, limit),
+        )
+        return await cur.fetchall()

@@ -26,6 +26,20 @@ TOOLS_BY_PERMISSION: dict[str, Callable[[dict[str, Any]], list[Tool]]] = {
 }
 
 FAILED_SUMMARY = "Sorry, something went wrong while working on this. Please try again."
+MAX_SUMMARY_CHARS = 1500
+
+
+def history_contents(previous: list[dict[str, Any]]) -> list[types.Content]:
+    """Earlier tasks as earlier chat turns (user asked -> agent replied), so follow-ups like
+    "OK, book the 8:30 one" make sense. The chat box is locked during a task, so each task is one exchange."""
+    contents = []
+    for task in previous:
+        reply = task["summary"][:MAX_SUMMARY_CHARS]
+        if task["status"] == TaskStatus.FAILED:
+            reply = f"(This task did not succeed.) {reply}"
+        contents.append(types.Content(role="user", parts=[types.Part(text=task["goal"])]))
+        contents.append(types.Content(role="model", parts=[types.Part(text=reply)]))
+    return contents
 
 
 def tools_for(task: dict[str, Any]) -> list[Tool]:
@@ -37,6 +51,7 @@ def tools_for(task: dict[str, Any]) -> list[Tool]:
 async def run_task(task_id: str) -> None:
     try:
         task = await store.load_task(task_id)
+        previous = await store.recent_tasks(task["agent_id"], task_id)
         tools = tools_for(task)
         result = await run_tool_loop(
             get_client(),
@@ -47,7 +62,7 @@ async def run_task(task_id: str) -> None:
                 user_name=task["user_name"],
                 tool_names=[t.name for t in tools],
             ),
-            contents=[types.Content(role="user", parts=[types.Part(text=task["goal"])])],
+            contents=[*history_contents(previous), types.Content(role="user", parts=[types.Part(text=task["goal"])])],
             tools=tools,
         )
     except Exception:
