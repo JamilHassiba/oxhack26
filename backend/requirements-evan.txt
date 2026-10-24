@@ -1,0 +1,3 @@
+-r requirements.txt
+# Yielded DB dependencies must commit before a response is sent.
+fastapi>=0.121
