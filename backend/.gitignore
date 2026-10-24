@@ -1,0 +1,5 @@
+# Python ignores for the backend (root .gitignore is kept in sync with the frontend on main).
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
