@@ -1,42 +1,61 @@
-# Frontend integration notes
+# Frontend integration
 
-## Run and ship
+Vite + React + TypeScript. Run `npm ci` then `npm run dev`. `npm run build` emits `dist/`; the server needs SPA history fallback. `/api` proxies to port 8000 in development. Production builds use `VITE_DEMO_MODE=false`, a same-origin `/api` reverse proxy, and unbuffered SSE. Environment values are public build inputs; never put secrets in `VITE_` variables.
 
-From this directory: `npm ci`, then `npm run dev`. `npm run build` emits static assets into `dist/`. Serve those assets with history fallback (`try_files {path} /index.html` in Caddy) so routes such as `/chat/maya` work on refresh. Reverse proxy `/api/*` to FastAPI with the `/api` prefix stripped. Keep SSE buffering disabled and allow long-lived connections on the proxy.
+## Contract and ownership
 
-Vite reads `VITE_DEMO_MODE` and `VITE_API_BASE_URL` at build time. Default is demo mode. Set `VITE_DEMO_MODE=false` before building the integrated app; use `/api` for same-origin requests. No secret belongs in a `VITE_` variable. This is the single-user hackathon UI described in the design; add authentication before exposing personal task data publicly.
-
-## Provisional API contract
-
-All JSON fields are defined in `src/types.ts`. No backend or OpenAPI schema was present when this frontend was built. These are integration assumptions to reconcile with Alex and Jamil, not an assertion of a working backend.
+`src/types.ts` is the agreed wire contract in `docs/PLAN.md`. This change does not modify those types or any backend files. Components call the adapter in `src/api.ts`; backend naming/response changes belong there. `src/history-types.ts` contains UI-only projections. Scenario metadata belongs to the local simulator and is never sent to FastAPI.
 
 | Request | Expected result |
 | --- | --- |
 | `GET /agents` | `Agent[]` |
-| `POST /agents` | body `{name, persona, voice, tools}`; returns `Agent` |
-| `PATCH /agents/{id}` | body `{tools}`; returns updated `Agent`; saves checkbox permissions when entering an agent |
-| `POST /agents/{id}/chat` | body `{message}`; returns `{task_id}` |
-| `GET /tasks/{id}` | `Task`, including `goal`, `agent_id`, `created_at`, optional `call`, `payment`, `calendar_event`, `summary`, and `events` |
-| `POST /payments/{id}/approve` or `/deny` | JSON result or HTTP 204; frontend refreshes task |
+| `POST /agents` | `{name, persona, voice, tools}` → `Agent` |
+| `GET /agents/{id}` | `Agent` |
+| `PATCH /agents/{id}` | partial agent fields → updated `Agent` |
+| `DELETE /agents/{id}` | empty 204 or JSON acknowledgement |
+| `GET /agents/{id}/tasks` | `Task[]`, the same joined shapes as task detail |
+| `POST /agents/{id}/chat` | `{message}` → `{task_id}` |
+| `GET /tasks/{id}` | `Task` |
+| `POST /payments/{id}/approve` or `/deny` | empty 204 or JSON acknowledgement |
 | `GET /calendar` | `CalendarEvent[]` |
-| `GET /calendar.ics` | downloadable calendar |
+| `GET /calendar.ics` | calendar attachment |
 | `GET /analytics/summary` | `Analytics` |
-| `GET /calls/{id}/events/stream` | SSE, described below |
+| `GET /calls/{id}/events/stream` | SSE JSON `{ts, call_id, kind, payload: {speaker?, text?}}` |
 
-Tool values are `phone`, `email`, `calendar`, `payments`. Voice currently uses a descriptive label; replace labels with supported voice IDs when the backend exposes voice options. Payment amounts are **integer minor units** (`2000` = £20); confirm this with the backend before connecting approval cards.
+The updated plan agrees PATCH for tools and the task-list endpoint. Agent management additionally needs PATCH of `name`, `persona`, and `voice`, plus DELETE. Those operations are isolated in the adapter and covered by mocked-server tests; they are not claimed to work against an unimplemented backend. Backend DELETE should reject active tasks/payments with 409 and preserve task history, preferably by archiving the agent. Duplication uses the existing POST endpoint and copies configuration only.
 
-Tasks poll every 1.2 seconds. Live mode remembers task IDs created in this browser because the sketch does not include a task-list or message-history endpoint; it cannot recover tasks created on other devices. Completed tasks continue to refresh for now to avoid missing eventual calendar/summary updates. Agent switching, navigation, and reload preserve task access. The agent picker shows one agent with previous/next arrows and four permission checkboxes. Draft permissions remain separate while switching; **Enter agent** saves them before navigating. Demo permissions persist locally. Live mode requires the provisional PATCH endpoint above and shows any save error without entering the agent. The last selected agent is remembered in this browser. There is one request/response task thread per message; longer conversational history should be integrated when the backend provides it.
+Payments use integer pence (`2000` = £20). Voices are labels mapped by Jamil. Tool permissions are `phone`, `email`, `calendar`, and `payments`. Chat is locked while a task runs; follow-up questions are answered with a new task, as agreed in PLAN.md.
 
-SSE uses `EventSource`, supports unnamed frames and named event kinds from DESIGN.md (`dialing`, `ringing`, `answered`, `transcript_line`, `tool_call`, `payment`, `ended`). The full event is JSON `{ts, call_id, kind, payload: {speaker?, text?}}`. Messages with the same timestamp, kind, and payload are deduplicated. Native EventSource reconnects automatically; polling continues while reconnecting. It closes on task completion or component unmount. REST task state must include transcript/events for replay after refresh. Event timestamps should be unique per call event; include SSE `id:` values for resumable delivery. Confirm authoritative payloads with Jamil's future `docs/EVENTS.md`.
+## History and agent management
 
-`npm run api:generate` fetches `http://localhost:8000/openapi.json` and generates `src/openapi.d.ts`. Use that schema to replace provisional contracts and adapt any response envelopes/field names before validating the integrated flow.
+Live task history and chat use `GET /agents/{id}/tasks`, not browser-created task IDs. A fresh browser sees all tasks returned for the current agents. History searches requests, summaries, agent names, and transcript text, with status/agent filters and direct `/history/{id}` views. Failed agent-list requests show an error; failed individual task-list requests show partial results and a retry. Filters survive detail navigation and reload via URL parameters.
 
-## Accessibility and interaction
+Deleting an agent is blocked while a task or approval is active. The adapter rechecks before DELETE; the backend remains responsible for enforcing this atomically. The frontend retains a labelled archived copy of completed tasks after deletion in that browser. A server-wide archived history endpoint is not assumed, so deleted-agent history on other devices depends on backend archival support. If local storage fails, the archive remains available in memory and the UI reports that it will not survive reload.
 
-High-contrast text, semantic navigation, labelled form controls, native modal focus containment and Escape handling, keyboard message submission (Shift+Enter for newline), reduced-motion support, approval disabled while submitting, and mobile layouts are included. Errors surface in the UI; HTTP requests time out after 15 seconds. User content is rendered as text, never injected HTML.
+Agent edit/duplicate dialogs preserve instructions, voice, and selected permissions. Failed saves keep the form and draft. The picker maintains separate unsaved permission choices while switching agents. Enter saves changes before navigating.
 
-## Scope
+## Demo scenarios
 
-Included: agent carousel/create, per-agent permission checkboxes, per-agent task threads, polling, SSE transcript/timeline, duration, summaries and failures, test payment approval/decline in chat and a dedicated Payments view, collapsed completed transcripts, calendar list/month/export, live aggregate charts, local persistent demo fixtures, and integration notes.
+Demo mode is on by default, needs no backend, and never calls or charges anyone. In chat with a phone-enabled agent, choose:
 
-Not yet validated: real API calls, real SSE delivery, provider voice IDs, backend auth, production deployment, email delivery, and end-to-end real phone calls. Public DEV/Devpost posts and demo recording need the working deployment; no publication is performed by this frontend change.
+- Successful booking: approve the £20 test deposit.
+- Declined deposit: manually decline when prompted; approval is never automated.
+- No answer: ringing followed by a failed task.
+- Fully booked: transcript and failure, without payment or calendar entry.
+- Alternative time: the agreed 7pm fallback is confirmed without a deposit.
+
+These are fixed restaurant fixtures, not AI interpretation of the request. Agents without phone permission complete a generic simulated request. Every run snapshots its scenario, agent identity, and permissions at submission, so later edits cannot alter an in-flight rehearsal. State persists across reload, stages are idempotent, and the original demo storage format is migrated without clearing existing history.
+
+## Checks
+
+`npm run build`, `npm test`, `npm run format:check`; for browser checks, `npx playwright install chromium` then `npm run test:e2e`. Tests cover desktop/mobile workflows, permission snapshots, blocked deletion, archived history, all scenarios, API failures, SSE, and the agreed server task list. `npm run api:generate` remains available once FastAPI publishes its OpenAPI schema. Real backend integration and deployment are separate from these mocked checks.
+
+## Feature files
+
+- `src/features/agents/`: editing, duplication, and safe deletion.
+- `src/features/history/`: search, filters, and task detail.
+- `src/features/demo/`: local scenario controls and fixture definitions.
+- `src/components/`: shared UI and call/payment cards.
+- `src/demo.ts`: persistent local simulator; `src/api.ts`: only HTTP boundary.
+
+The core stylesheet and backend-owned files were left unchanged by the feature work. New feature styles live in `src/features/features.css`.

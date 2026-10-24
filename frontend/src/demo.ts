@@ -1,4 +1,7 @@
-import type { Agent, AgentInput, Analytics, CalendarEvent, Task } from './types';
+import type { Agent, AgentInput, Analytics, CalendarEvent, Task, Tool } from './types';
+import type { HistoryEntry, TaskHistory } from './history-types';
+import { isActive, previousAgent } from './history-types';
+import { isDemoScenario, type DemoScenario } from './features/demo/scenarios';
 const key = 'concierge-demo-v1';
 const presets: Agent[] = [
   {
@@ -18,56 +21,83 @@ const presets: Agent[] = [
     tools: ['email', 'calendar'],
   },
 ];
-type State = { agents: Agent[]; tasks: Task[] };
+type Run = { scenario: DemoScenario; agent: Agent };
+type State = { agents: Agent[]; tasks: Task[]; runs: Record<string, Run> };
 let memory: State | undefined;
+let persistent = true;
 function state(): State {
   if (memory) return memory;
   try {
     const saved = JSON.parse(localStorage.getItem(key) || 'null');
-    if (saved?.agents && saved?.tasks) return (memory = saved);
+    if (Array.isArray(saved?.agents) && Array.isArray(saved?.tasks)) {
+      // Add run metadata lazily so existing MVP demos survive this upgrade.
+      return (memory = {
+        agents: saved.agents,
+        tasks: saved.tasks,
+        runs: saved.runs && typeof saved.runs === 'object' ? saved.runs : {},
+      });
+    }
   } catch {
-    /* Storage unavailable or an old fixture. */
+    persistent = false;
   }
-  return (memory = { agents: structuredClone(presets), tasks: [] });
+  return (memory = { agents: structuredClone(presets), tasks: [], runs: {} });
 }
 function save() {
   try {
     localStorage.setItem(key, JSON.stringify(state()));
+    persistent = true;
   } catch {
-    /* In-memory demo still works. */
+    persistent = false;
   }
+}
+function run(task: Task): Run {
+  return (state().runs[task.id] ||= {
+    scenario: /\b(fail|no answer)\b/i.test(task.goal) ? 'no_answer' : 'success',
+    agent: structuredClone(
+      state().agents.find((a) => a.id === task.agent_id) || previousAgent(task.agent_id),
+    ),
+  });
+}
+function at(task: Task, elapsed: number) {
+  return new Date(Date.parse(task.created_at) + elapsed).toISOString();
 }
 function addEvent(
   task: Task,
   kind: Task['events'][number]['kind'],
   text: string,
   speaker?: string,
+  ts = new Date().toISOString(),
 ) {
-  task.events.push({
-    ts: new Date().toISOString(),
-    call_id: task.call!.id,
-    kind,
-    payload: { text, speaker },
-  });
+  task.events.push({ ts, call_id: task.call!.id, kind, payload: { text, speaker } });
   if (kind === 'transcript_line') task.call!.transcript.push({ speaker: speaker!, text });
 }
-function complete(task: Task) {
-  const agent = state().agents.find((a) => a.id === task.agent_id)!;
-  task.status = 'done';
-  if (task.call) {
-    task.call.status = 'ended';
-    task.call.ended_at = new Date().toISOString();
-    addEvent(task, 'ended', 'Call finished');
-  }
+function endCall(task: Task, ts: string) {
+  if (!task.call || task.call.ended_at) return;
+  task.call.status = 'ended';
+  task.call.ended_at = ts;
+  addEvent(task, 'ended', 'Call finished', undefined, ts);
+}
+function fail(task: Task, summary: string, elapsed = 6000) {
+  task.status = 'failed';
+  task.summary = summary;
+  endCall(task, at(task, elapsed));
+}
+function complete(task: Task, ts = new Date().toISOString()) {
+  const { agent, scenario } = run(task);
+  const hour = scenario === 'alternative_time' ? 19 : 18;
   const denied = task.payment?.status === 'denied';
+  task.status = 'done';
+  endCall(task, ts);
   if (task.payment?.status === 'approved') task.payment.status = 'paid';
   task.summary = denied
-    ? 'You declined the deposit. No payment was made and no reservation was confirmed.'
-    : `Demo task completed.${task.call ? ' A table for four is reserved at The Ivy Oxford at 6:00 pm tomorrow.' : ' Your request has been organised.'}${task.payment ? ' The £20 test deposit was approved.' : ''}${agent.tools.includes('email') ? ' A simulated confirmation email is ready.' : ''}`;
+    ? 'Deposit declined. No payment or reservation was made.'
+    : task.call
+      ? `Table for 4 confirmed at The Ivy Oxford tomorrow at ${hour}:00.${task.payment ? ' £20 test deposit approved.' : ''}${agent.tools.includes('email') ? ' Demo confirmation email prepared.' : ''}`
+      : 'Demo request completed.';
   if (!denied && agent.tools.includes('calendar')) {
-    const starts = new Date();
+    const starts = new Date(task.created_at);
     starts.setDate(starts.getDate() + 1);
-    starts.setHours(18, 0, 0, 0);
+    starts.setHours(hour, 0, 0, 0);
     task.calendar_event = {
       id: `event-${task.id}`,
       task_id: task.id,
@@ -78,102 +108,178 @@ function complete(task: Task) {
     };
   }
 }
+function advance(task: Task) {
+  if (!isActive(task) || task.status === 'awaiting_approval') return task;
+  const { agent, scenario } = run(task);
+  const age = Date.now() - Date.parse(task.created_at);
+  if (task.status === 'planning' && age >= 900) {
+    if (!agent.tools.includes('phone')) {
+      complete(task, at(task, 900));
+      return task;
+    }
+    task.status = 'calling';
+    task.call = {
+      id: `call-${task.id}`,
+      status: 'dialing',
+      started_at: at(task, 900),
+      transcript: [],
+    };
+    addEvent(task, 'dialing', 'Calling The Ivy Oxford', undefined, at(task, 900));
+  }
+  if (task.status !== 'calling') return task;
+  if (age >= 1800 && !task.events.some((e) => e.kind === 'ringing'))
+    addEvent(task, 'ringing', 'Phone ringing', undefined, at(task, 1800));
+  if (scenario === 'no_answer') {
+    if (age >= 6000)
+      fail(task, 'The restaurant did not answer. Try again or choose another restaurant.');
+    return task;
+  }
+  if (age >= 2500 && !task.events.some((e) => e.kind === 'answered')) {
+    task.call!.status = 'answered';
+    addEvent(task, 'answered', 'Connected to the restaurant', undefined, at(task, 2500));
+    addEvent(
+      task,
+      'transcript_line',
+      `Hi, I’m ${agent.name}, an AI assistant calling on behalf of my user. Could I book a table for four tomorrow at six?`,
+      agent.name,
+      at(task, 2600),
+    );
+  }
+  if (age >= 4500 && task.call!.transcript.length === 1) {
+    const text =
+      scenario === 'fully_booked'
+        ? 'I’m sorry, we’re fully booked all evening. There are no alternative times available.'
+        : scenario === 'alternative_time'
+          ? 'Six is full, but we can offer seven. No deposit is needed.'
+          : 'Of course. We have a table at six. There’s a £20 deposit to secure the booking.';
+    addEvent(task, 'transcript_line', text, 'Restaurant', at(task, 4500));
+  }
+  if (age >= 6000) {
+    if (scenario === 'fully_booked')
+      fail(task, 'The restaurant is fully booked. No reservation or payment was made.');
+    else if (scenario === 'alternative_time') {
+      addEvent(
+        task,
+        'transcript_line',
+        'Seven works with the fallback my user approved. Please confirm the table for four.',
+        agent.name,
+        at(task, 5500),
+      );
+      complete(task, at(task, 6000));
+    } else if (agent.tools.includes('payments')) {
+      task.status = 'awaiting_approval';
+      task.payment = {
+        id: `payment-${task.id}`,
+        task_id: task.id,
+        amount: 2000,
+        currency: 'GBP',
+        merchant: 'The Ivy Oxford',
+        status: 'pending_approval',
+      };
+      addEvent(task, 'payment', 'Waiting for your approval', undefined, at(task, 6000));
+    } else fail(task, 'A deposit is required. Enable payments before starting another booking.');
+  }
+  return task;
+}
+function findTask(id: string) {
+  const task = state().tasks.find((t) => t.id === id);
+  if (!task) throw new Error('Task not found.');
+  return task;
+}
+function validateAgent(input: AgentInput) {
+  if (
+    !input.name.trim() ||
+    input.name.trim().length > 40 ||
+    !input.persona.trim() ||
+    input.persona.length > 1500
+  )
+    throw new Error('Enter a name and instructions within the length limits.');
+  if (input.tools.some((t) => !['phone', 'email', 'calendar', 'payments'].includes(t)))
+    throw new Error('Unknown tool permission.');
+  return {
+    ...input,
+    name: input.name.trim(),
+    persona: input.persona.trim(),
+    tools: [...new Set(input.tools)],
+  };
+}
 export const demo = {
   async agents() {
     return structuredClone(state().agents);
   },
   async createAgent(input: AgentInput) {
-    const agent = { ...input, id: crypto.randomUUID() };
+    const agent = { ...validateAgent(input), id: crypto.randomUUID() };
     state().agents.push(agent);
-    save();
-    return agent;
-  },
-  async setAgentTools(id: string, tools: Agent['tools']) {
-    const agent = state().agents.find((a) => a.id === id);
-    if (!agent) throw new Error('Agent not found.');
-    agent.tools = [...tools];
     save();
     return structuredClone(agent);
   },
-  async tasks(agentId: string) {
-    return structuredClone(state().tasks.filter((t) => t.agent_id === agentId));
+  async updateAgent(id: string, input: Partial<AgentInput>) {
+    const index = state().agents.findIndex((a) => a.id === id);
+    if (index < 0) throw new Error('Agent not found.');
+    state().agents[index] = { ...validateAgent({ ...state().agents[index], ...input }), id };
+    save();
+    return structuredClone(state().agents[index]);
   },
-  async send(agentId: string, goal: string) {
+  async setAgentTools(id: string, tools: Tool[]) {
+    return demo.updateAgent(id, { tools });
+  },
+  async deleteAgent(id: string) {
+    if (!state().agents.some((a) => a.id === id)) throw new Error('Agent not found.');
+    state().tasks.forEach((t) => {
+      run(t);
+      advance(t);
+    });
+    save();
+    if (state().tasks.some((t) => t.agent_id === id && isActive(t)))
+      throw new Error('Finish this agent’s active tasks and payment approvals before deleting it.');
+    state().agents = state().agents.filter((a) => a.id !== id);
+    save();
+  },
+  async tasks(agentId: string) {
+    return structuredClone(
+      state()
+        .tasks.filter((t) => t.agent_id === agentId)
+        .map(advance),
+    );
+  },
+  async send(agentId: string, goal: string, scenario?: DemoScenario) {
+    const agent = state().agents.find((a) => a.id === agentId);
+    if (!agent) throw new Error('Agent not found.');
+    if (!goal.trim()) throw new Error('Enter a request.');
+    if (state().tasks.some((t) => t.agent_id === agentId && isActive(advance(t))))
+      throw new Error('Finish the current task before starting another.');
+    const selected = scenario ?? (/\b(fail|no answer)\b/i.test(goal) ? 'no_answer' : 'success');
+    if (!isDemoScenario(selected)) throw new Error('Unknown demo scenario.');
     const task: Task = {
       id: crypto.randomUUID(),
       agent_id: agentId,
-      goal,
+      goal: goal.trim(),
       status: 'planning',
       created_at: new Date().toISOString(),
       events: [],
     };
+    state().runs[task.id] = { scenario: selected, agent: structuredClone(agent) };
     state().tasks.push(task);
     save();
     return { task_id: task.id };
   },
   async task(id: string) {
-    const task = state().tasks.find((t) => t.id === id);
-    if (!task) throw new Error('Task not found.');
-    const agent = state().agents.find((a) => a.id === task.agent_id)!;
-    const age = Date.now() - Date.parse(task.created_at);
-    if (task.status === 'planning' && age >= 900) {
-      if (/\b(fail|no answer)\b/i.test(task.goal)) {
-        task.status = 'failed';
-        task.summary = 'The restaurant did not answer. Try again or ask for another restaurant.';
-      } else if (!agent.tools.includes('phone')) complete(task);
-      else {
-        task.status = 'calling';
-        task.call = {
-          id: `call-${id}`,
-          status: 'dialing',
-          started_at: new Date().toISOString(),
-          transcript: [],
-        };
-        addEvent(task, 'dialing', 'Calling The Ivy Oxford');
-      }
-    }
-    if (task.status === 'calling') {
-      if (age >= 2500 && !task.events.some((e) => e.kind === 'answered')) {
-        task.call!.status = 'answered';
-        addEvent(task, 'answered', 'Connected to the restaurant');
-        addEvent(
-          task,
-          'transcript_line',
-          `Hi, I’m ${agent.name}, an AI assistant calling on behalf of my user. Could I book a table for four tomorrow at six?`,
-          agent.name,
-        );
-      }
-      if (age >= 4500 && task.call!.transcript.length === 1)
-        addEvent(
-          task,
-          'transcript_line',
-          'Of course. We have a table at six. There’s a £20 deposit to secure the booking.',
-          'Restaurant',
-        );
-      if (age >= 6000) {
-        if (agent.tools.includes('payments')) {
-          task.status = 'awaiting_approval';
-          task.payment = {
-            id: `payment-${id}`,
-            task_id: id,
-            amount: 2000,
-            currency: 'GBP',
-            merchant: 'The Ivy Oxford',
-            status: 'pending_approval',
-          };
-          addEvent(task, 'payment', 'Waiting for your approval');
-        } else {
-          task.status = 'failed';
-          task.call!.status = 'ended';
-          task.call!.ended_at = new Date().toISOString();
-          task.summary =
-            'The restaurant requires a deposit. Enable payments on a new agent to complete this demo booking.';
-          addEvent(task, 'ended', 'Booking requires a payment tool');
-        }
-      }
-    }
+    const task = advance(findTask(id));
     save();
     return structuredClone(task);
+  },
+  async history(): Promise<TaskHistory> {
+    const items = state().tasks.map((task) => ({
+      task: structuredClone(advance(task)),
+      agent: structuredClone(run(task).agent),
+    }));
+    save();
+    return { items, unavailable: [], scope: 'demo', persistent };
+  },
+  async taskDetail(id: string): Promise<HistoryEntry> {
+    const task = advance(findTask(id));
+    save();
+    return { task: structuredClone(task), agent: structuredClone(run(task).agent) };
   },
   async decide(id: string, approve: boolean) {
     const task = state().tasks.find((t) => t.payment?.id === id);
@@ -186,29 +292,34 @@ export const demo = {
       approve
         ? 'The test deposit is approved. Thank you for confirming the reservation.'
         : 'We won’t proceed with the deposit. Thank you for your time.',
-      state().agents.find((a) => a.id === task.agent_id)!.name,
+      run(task).agent.name,
     );
     complete(task);
     save();
   },
   async calendar(): Promise<CalendarEvent[]> {
+    state().tasks.forEach(advance);
+    save();
     return structuredClone(
       state().tasks.flatMap((t) => (t.calendar_event ? [t.calendar_event] : [])),
     );
   },
   async analytics(): Promise<Analytics> {
+    state().tasks.forEach(advance);
+    save();
     const calls = state().tasks.filter((t) => t.call);
     const ended = calls.filter((t) => t.call?.ended_at);
+    const successful = (task: Task) => task.status === 'done' && task.payment?.status !== 'denied';
+    const roster = new Map(state().agents.map((a) => [a.id, a]));
+    for (const task of state().tasks)
+      if (!roster.has(task.agent_id)) roster.set(task.agent_id, run(task).agent);
     return {
       total_calls: calls.length,
-      success_rate: ended.length
-        ? (ended.filter((t) => t.status === 'done' && t.payment?.status !== 'denied').length /
-            ended.length) *
-          100
-        : 0,
+      success_rate: ended.length ? (ended.filter(successful).length / ended.length) * 100 : 0,
       avg_duration_seconds: ended.length
         ? ended.reduce(
-            (s, t) => s + (Date.parse(t.call!.ended_at!) - Date.parse(t.call!.started_at)) / 1000,
+            (sum, t) =>
+              sum + (Date.parse(t.call!.ended_at!) - Date.parse(t.call!.started_at)) / 1000,
             0,
           ) / ended.length
         : 0,
@@ -222,16 +333,12 @@ export const demo = {
             .length,
         };
       }),
-      agents: state().agents.map((a) => {
+      agents: [...roster.values()].map((a) => {
         const tasks = ended.filter((t) => t.agent_id === a.id);
         return {
           name: a.name,
           calls: calls.filter((t) => t.agent_id === a.id).length,
-          success_rate: tasks.length
-            ? (tasks.filter((t) => t.status === 'done' && t.payment?.status !== 'denied').length /
-                tasks.length) *
-              100
-            : 0,
+          success_rate: tasks.length ? (tasks.filter(successful).length / tasks.length) * 100 : 0,
         };
       }),
     };

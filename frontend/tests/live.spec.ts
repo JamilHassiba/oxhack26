@@ -1,51 +1,121 @@
-import { test, expect } from '@playwright/test';
-import type { Task } from '../src/types';
-const agent = {
+import { test, expect, type Page } from '@playwright/test';
+import type { Agent, Task } from '../src/types';
+const agent: Agent = {
   id: 'backend-maya',
   name: 'Maya',
   persona: 'Helpful',
   voice: 'Warm',
   tools: ['phone', 'payments', 'calendar'],
 };
-test('HTTP adapter, named SSE frames, approval, and reconnect fallback', async ({ page }) => {
-  let approved = false;
-  let receivedMessage = '';
-  const task: Task = {
-    id: 'backend-task',
-    agent_id: agent.id,
-    goal: 'Book dinner',
-    status: 'awaiting_approval',
-    created_at: new Date().toISOString(),
-    events: [],
-    call: {
-      id: 'backend-call',
-      status: 'answered',
-      started_at: new Date().toISOString(),
-      transcript: [],
-    },
-    payment: {
-      id: 'backend-payment',
-      task_id: 'backend-task',
-      amount: 2000,
-      currency: 'GBP',
-      status: 'pending_approval',
-    },
+const finished = (id = 'previous'): Task => ({
+  id,
+  agent_id: agent.id,
+  goal: 'A previous dinner booking',
+  status: 'done',
+  summary: 'Reservation confirmed by backend.',
+  created_at: '2026-10-24T10:00:00Z',
+  events: [],
+});
+async function backend(page: Page, initial: Task[] = []) {
+  const state = {
+    agents: structuredClone([agent]),
+    tasks: structuredClone(initial),
+    failChat: false,
+    failPatch: false,
+    failDelete: false,
+    unavailable: new Set<string>(),
+    lastMessage: {} as Record<string, unknown>,
   };
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === '/api/agents') return route.fulfill({ json: [agent] });
-    if (path.endsWith('/chat')) {
-      receivedMessage = route.request().postDataJSON().message;
-      return route.fulfill({ json: { task_id: task.id } });
+    const method = route.request().method();
+    if (path === '/api/agents') {
+      if (method === 'POST') {
+        const created = { ...route.request().postDataJSON(), id: `copy-${state.agents.length}` };
+        state.agents.push(created);
+        return route.fulfill({ json: created });
+      }
+      return route.fulfill({ json: state.agents });
     }
-    if (path.endsWith('/approve')) {
-      approved = true;
+    const agentMatch = path.match(/^\/api\/agents\/([^/]+)$/);
+    if (agentMatch) {
+      const current = state.agents.find((a) => a.id === agentMatch[1]);
+      if (method === 'PATCH') {
+        if (state.failPatch)
+          return route.fulfill({ status: 503, json: { detail: 'Could not save changes.' } });
+        Object.assign(current!, route.request().postDataJSON());
+        return route.fulfill({ json: current });
+      }
+      if (method === 'DELETE') {
+        if (state.failDelete)
+          return route.fulfill({
+            status: 409,
+            json: { detail: 'An active task appeared. Try again later.' },
+          });
+        state.agents = state.agents.filter((a) => a.id !== agentMatch[1]);
+        return route.fulfill({ status: 204 });
+      }
+    }
+    const taskList = path.match(/^\/api\/agents\/([^/]+)\/tasks$/);
+    if (taskList)
+      return state.unavailable.has(taskList[1])
+        ? route.fulfill({ status: 503, json: { detail: 'Tasks unavailable' } })
+        : route.fulfill({ json: state.tasks.filter((t) => t.agent_id === taskList[1]) });
+    if (path.endsWith('/chat')) {
+      state.lastMessage = route.request().postDataJSON();
+      if (state.failChat)
+        return route.fulfill({
+          status: 503,
+          json: { detail: 'Agent is temporarily unavailable.' },
+        });
+      const id = `task-${state.tasks.length}`;
+      state.tasks.push({
+        id,
+        agent_id: agent.id,
+        goal: String(state.lastMessage.message),
+        status: 'awaiting_approval',
+        created_at: new Date().toISOString(),
+        events: [],
+        call: {
+          id: `call-${id}`,
+          status: 'answered',
+          started_at: new Date().toISOString(),
+          transcript: [],
+        },
+        payment: {
+          id: `payment-${id}`,
+          task_id: id,
+          amount: 2000,
+          currency: 'GBP',
+          status: 'pending_approval',
+        },
+      });
+      return route.fulfill({ json: { task_id: id } });
+    }
+    if (/\/payments\/.*\/(approve|deny)$/.test(path)) {
+      const task = state.tasks.find((t) => t.payment?.id === path.split('/')[3])!;
+      task.status = 'done';
+      task.summary = path.endsWith('/approve')
+        ? 'Reservation confirmed by backend.'
+        : 'Payment declined.';
+      task.payment!.status = path.endsWith('/approve') ? 'paid' : 'denied';
+      task.call!.ended_at = new Date().toISOString();
+      task.call!.transcript = [
+        { speaker: 'Restaurant', text: 'Live backend transcript received.' },
+      ];
       return route.fulfill({ status: 204 });
+    }
+    const detail = path.match(/^\/api\/tasks\/([^/]+)$/);
+    if (detail) {
+      const task = state.tasks.find((t) => t.id === detail[1]);
+      return task
+        ? route.fulfill({ json: task })
+        : route.fulfill({ status: 404, json: { detail: 'Task not found.' } });
     }
     if (path.endsWith('/events/stream')) {
       const event = {
         ts: '2026-10-24T12:00:00Z',
-        call_id: task.call!.id,
+        call_id: path.split('/')[3],
         kind: 'transcript_line',
         payload: { speaker: 'Restaurant', text: 'Live backend transcript received.' },
       };
@@ -54,92 +124,107 @@ test('HTTP adapter, named SSE frames, approval, and reconnect fallback', async (
         body: `id: 1\nevent: transcript_line\ndata: ${JSON.stringify(event)}\n\n`,
       });
     }
-    if (path === `/api/tasks/${task.id}`)
-      return route.fulfill({
-        json: approved
-          ? {
-              ...task,
-              status: 'done',
-              summary: 'Reservation confirmed by backend.',
-              call: {
-                ...task.call,
-                ended_at: new Date().toISOString(),
-                transcript: [{ speaker: 'Restaurant', text: 'Live backend transcript received.' }],
-              },
-              payment: { ...task.payment, status: 'paid' },
-            }
-          : task,
-      });
     return route.fulfill({ status: 404, json: { detail: 'Unknown endpoint' } });
   });
+  return state;
+}
+test('HTTP adapter, named SSE, approval, reload, and no demo metadata on the wire', async ({
+  page,
+}) => {
+  const state = await backend(page);
   await page.goto(`/chat/${agent.id}`);
   await expect(page.getByText('Connected to backend')).toBeVisible();
+  await expect(page.getByLabel('Demo scenario')).toHaveCount(0);
   await page.getByRole('textbox', { name: 'Message Maya' }).fill('Book dinner');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Live backend transcript received.')).toBeVisible();
-  expect(receivedMessage).toBe('Book dinner');
+  expect(state.lastMessage).toEqual({ message: 'Book dinner' });
   await page.getByRole('button', { name: 'Approve £20.00' }).click();
   await expect(page.getByText('Reservation confirmed by backend.')).toBeVisible();
   await page.reload();
   await expect(page.getByText('Reservation confirmed by backend.')).toBeVisible();
 });
-test('failed sends preserve the draft and can be retried', async ({ page }) => {
-  let fail = true;
-  await page.route('**/api/agents', (route) => route.fulfill({ json: [agent] }));
-  await page.route('**/api/agents/*/chat', (route) =>
-    route.fulfill(
-      fail
-        ? { status: 503, json: { detail: 'Agent is temporarily unavailable.' } }
-        : { json: { task_id: 'retried' } },
-    ),
-  );
-  await page.route('**/api/tasks/retried', (route) =>
-    route.fulfill({
-      json: {
-        id: 'retried',
-        agent_id: agent.id,
-        goal: 'Please book dinner',
-        status: 'done',
-        summary: 'Retry succeeded.',
-        created_at: new Date().toISOString(),
-        events: [],
-      },
-    }),
-  );
+test('failed sends preserve the draft for a deliberate retry', async ({ page }) => {
+  const state = await backend(page);
+  state.failChat = true;
   await page.goto(`/chat/${agent.id}`);
   const composer = page.getByRole('textbox', { name: 'Message Maya' });
   await composer.fill('Please book dinner');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByRole('alert')).toContainText('Agent is temporarily unavailable.');
   await expect(composer).toHaveValue('Please book dinner');
-  fail = false;
+  state.failChat = false;
   await page.getByRole('button', { name: 'Send message' }).click();
-  await expect(page.getByText('Retry succeeded.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Approve £20.00' })).toBeVisible();
 });
-
-test('enter agent persists selected tools to the API and handles a save error', async ({
-  page,
-}) => {
-  let fail = true;
-  let current = { ...agent, tools: [...agent.tools] };
-  let receivedTools: string[] = [];
-  await page.route('**/api/agents', (route) => route.fulfill({ json: [current] }));
-  await page.route(`**/api/agents/${agent.id}`, (route) => {
-    receivedTools = route.request().postDataJSON().tools;
-    if (fail)
-      return route.fulfill({ status: 503, json: { detail: 'Could not save permissions.' } });
-    current = { ...current, tools: receivedTools };
-    return route.fulfill({ json: current });
-  });
+test('permissions save failures do not enter the agent or discard choices', async ({ page }) => {
+  const state = await backend(page);
+  state.failPatch = true;
   await page.goto('/agents');
   await page.getByRole('checkbox', { name: 'Phone calls', exact: true }).uncheck();
   await page.getByRole('button', { name: 'Enter agent', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('Could not save permissions.');
+  await expect(page.getByRole('alert')).toContainText('Could not save changes.');
   await expect(page).toHaveURL(/\/agents$/);
   await expect(page.getByRole('checkbox', { name: 'Phone calls', exact: true })).not.toBeChecked();
-  fail = false;
+  state.failPatch = false;
   await page.getByRole('button', { name: 'Enter agent', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/chat/${agent.id}$`));
-  expect(receivedTools).toEqual(['payments', 'calendar']);
-  await expect(page.getByRole('button', { name: 'Book a table' })).toHaveCount(0);
+  expect(state.agents[0].tools).toEqual(['payments', 'calendar']);
+});
+test('history loads server tasks on a fresh browser and preserves partial results', async ({
+  page,
+}) => {
+  const state = await backend(page, [finished()]);
+  state.agents.push({ ...agent, id: 'other', name: 'Other' });
+  state.unavailable.add('other');
+  await page.goto('/history');
+  await expect(page.getByRole('link', { name: /A previous dinner booking/ })).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('Some agents');
+  await page.getByRole('link', { name: /A previous dinner booking/ }).click();
+  await expect(page.getByText('Reservation confirmed by backend.')).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('Reservation confirmed by backend.')).toBeVisible();
+});
+test('profile update failure keeps the form, then saves and duplicates independently', async ({
+  page,
+}) => {
+  const state = await backend(page);
+  state.failPatch = true;
+  await page.goto('/agents');
+  await page.getByText('Manage', { exact: true }).click();
+  await page.getByRole('button', { name: 'Edit agent', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Agent name' }).fill('Maya edited');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('alert')).toContainText('Could not save changes.');
+  await expect(page.getByRole('textbox', { name: 'Agent name' })).toHaveValue('Maya edited');
+  state.failPatch = false;
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('heading', { name: 'Maya edited', exact: true })).toBeVisible();
+  await page.getByLabel('Manage agent').click();
+  await page.getByRole('button', { name: 'Duplicate agent', exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Duplicate agent', exact: true })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Maya edited copy', exact: true })).toBeVisible();
+  expect(state.agents).toHaveLength(2);
+});
+test('server deletion conflict is handled and a later delete preserves archived history', async ({
+  page,
+}) => {
+  const state = await backend(page, [finished()]);
+  state.failDelete = true;
+  await page.goto('/agents');
+  await page.getByLabel('Manage agent').click();
+  await page.getByRole('button', { name: 'Delete agent', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete agent', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('An active task appeared.');
+  state.failDelete = false;
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete agent', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Create your first agent' })).toBeVisible();
+  await page.goto('/history');
+  await page.getByRole('link', { name: /A previous dinner booking/ }).click();
+  await expect(page.getByText('Archived copy saved in this browser.')).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('Reservation confirmed by backend.')).toBeVisible();
 });

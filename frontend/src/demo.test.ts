@@ -77,7 +77,7 @@ describe('demo booking lifecycle', () => {
   });
   it('handles a no-answer scenario', async () => {
     const { task_id } = await demo.send('maya', 'no answer');
-    vi.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(7000);
     expect((await demo.task(task_id)).status).toBe('failed');
     expect(await demo.calendar()).toEqual([]);
   });
@@ -101,5 +101,101 @@ describe('agent permissions', () => {
     expect(task.call).toBeUndefined();
     expect(task.payment).toBeUndefined();
     expect(task.calendar_event).toBeUndefined();
+  });
+});
+
+describe('rehearsal scenarios and history', () => {
+  it('records a no-answer call as a failed outcome and never creates a deposit', async () => {
+    const { task_id } = await demo.send('maya', 'Call the restaurant', 'no_answer');
+    vi.advanceTimersByTime(7000);
+    const task = await demo.task(task_id);
+    expect(task.status).toBe('failed');
+    expect(task.call?.ended_at).toBeTruthy();
+    expect(task.call?.transcript).toEqual([]);
+    expect(task.payment).toBeUndefined();
+    expect((await demo.analytics()).success_rate).toBe(0);
+  });
+  it('fully booked produces a transcript and no payment or calendar entry', async () => {
+    const { task_id } = await demo.send('maya', 'Book dinner', 'fully_booked');
+    vi.advanceTimersByTime(7000);
+    const task = await demo.task(task_id);
+    expect(task.status).toBe('failed');
+    expect(task.summary).toContain('fully booked');
+    expect(task.call?.transcript.at(-1)?.text).toContain('fully booked');
+    expect(task.payment).toBeUndefined();
+    expect(await demo.calendar()).toEqual([]);
+  });
+  it('books the agreed fallback at 19:00 with no unnecessary charge', async () => {
+    const { task_id } = await demo.send('maya', '7pm is fine', 'alternative_time');
+    vi.advanceTimersByTime(7000);
+    const task = await demo.task(task_id);
+    expect(task.status).toBe('done');
+    expect(task.summary).toContain('19:00');
+    expect(task.payment).toBeUndefined();
+    expect(new Date(task.calendar_event!.starts_at).getHours()).toBe(19);
+    const again = await demo.task(task_id);
+    expect(again.events).toEqual(task.events);
+  });
+  it('declined-deposit rehearsal waits for the user instead of auto-denying', async () => {
+    const { task_id } = await demo.send('maya', 'Book dinner', 'declined_deposit');
+    vi.advanceTimersByTime(7000);
+    let task = await demo.task(task_id);
+    expect(task.payment?.status).toBe('pending_approval');
+    vi.advanceTimersByTime(120000);
+    task = await demo.task(task_id);
+    expect(task.status).toBe('awaiting_approval');
+    await demo.decide(task.payment!.id, false);
+    expect((await demo.task(task_id)).payment?.status).toBe('denied');
+    expect(await demo.calendar()).toEqual([]);
+  });
+  it('edits do not change a run already in progress, and deletion waits for resolution', async () => {
+    const { task_id } = await demo.send('maya', 'Book dinner');
+    await demo.updateAgent('maya', { name: 'Maya updated', tools: [] });
+    await expect(demo.deleteAgent('maya')).rejects.toThrow('active tasks');
+    vi.advanceTimersByTime(7000);
+    const task = await demo.task(task_id);
+    expect(task.payment?.status).toBe('pending_approval');
+    expect(task.call?.transcript[0].speaker).toBe('Maya');
+    await expect(demo.deleteAgent('maya')).rejects.toThrow('payment approvals');
+    await demo.decide(task.payment!.id, true);
+    await demo.deleteAgent('maya');
+    expect((await demo.agents()).map((a) => a.id)).not.toContain('maya');
+    expect((await demo.taskDetail(task_id)).agent.name).toBe('Maya');
+    expect((await demo.history()).items).toHaveLength(1);
+    expect(await demo.calendar()).toHaveLength(1);
+    vi.resetModules();
+    const restored = (await import('./demo')).demo;
+    expect((await restored.taskDetail(task_id)).task.status).toBe('done');
+  });
+  it('duplicating configuration creates an independent agent without copying tasks', async () => {
+    const original = (await demo.agents())[0];
+    const copy = await demo.createAgent({ ...original, name: 'Maya copy' });
+    expect(copy.id).not.toBe(original.id);
+    await demo.updateAgent(copy.id, { tools: ['email'], persona: 'Different instructions' });
+    expect((await demo.agents())[0].tools).toContain('phone');
+    expect(await demo.tasks(copy.id)).toEqual([]);
+  });
+  it('rejects overlapping runs and invalid scenario IDs', async () => {
+    await expect(demo.send('maya', 'Book dinner', 'not-a-scenario' as never)).rejects.toThrow(
+      'Unknown demo scenario',
+    );
+    expect((await demo.history()).items).toEqual([]);
+    await demo.send('maya', 'Book dinner');
+    await expect(demo.send('maya', 'Another booking')).rejects.toThrow('current task');
+  });
+  it('works in memory and reports when browser persistence is unavailable', async () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('Unavailable');
+      },
+      setItem: () => {
+        throw new Error('Unavailable');
+      },
+    });
+    await demo.createAgent({ name: 'Private browser', persona: 'Help', voice: 'Warm', tools: [] });
+    const { task_id } = await demo.send('maya', 'Book dinner', 'alternative_time');
+    vi.advanceTimersByTime(7000);
+    expect((await demo.task(task_id)).status).toBe('done');
+    expect((await demo.history()).persistent).toBe(false);
   });
 });

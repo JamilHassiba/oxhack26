@@ -149,3 +149,103 @@ test('important text has readable contrast and controls fit the viewport', async
     expect(item.ratio, `Contrast for ${item.text}`).toBeGreaterThanOrEqual(4.5);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+test('edit, duplicate, and delete an agent without deleting its original', async ({ page }) => {
+  await page.goto('/agents');
+  await page.getByLabel('Manage agent').click();
+  await page.getByRole('button', { name: 'Edit agent', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Agent name' }).fill('Maya edited');
+  await page.getByRole('textbox', { name: 'Personality' }).fill('Concise and practical.');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('heading', { name: 'Maya edited', exact: true })).toBeVisible();
+  await page.getByLabel('Manage agent').click();
+  await page.getByRole('button', { name: 'Duplicate agent', exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Duplicate agent', exact: true })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Maya edited copy', exact: true })).toBeVisible();
+  await page.getByLabel('Manage agent').click();
+  await page.getByRole('button', { name: 'Delete agent', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete agent', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Maya edited copy', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Next agent' }).click();
+  await expect(page.getByRole('heading', { name: 'Maya edited', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Maya edited', exact: true })).toBeVisible();
+});
+test('history searches transcripts, filters tasks, and opens a direct task view', async ({
+  page,
+}) => {
+  await page.goto('/chat/maya');
+  await page.getByLabel('Demo scenario').selectOption('alternative_time');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText('All taken care of.', { exact: true })).toBeVisible({
+    timeout: 15000,
+  });
+  await page.getByRole('navigation').getByRole('link', { name: 'History', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Search history' }).fill('No deposit is needed');
+  await expect(page.locator('.history-row')).toHaveCount(1);
+  await page.getByLabel('Filter by status').selectOption('failed');
+  await expect(page.getByText('No matching tasks', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Clear filters' }).click();
+  await page.locator('.history-row').click();
+  await expect(page.getByText('All taken care of.', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('19:00', { exact: false }).first()).toBeVisible();
+  await page.getByText('Call transcript', { exact: true }).click();
+  await expect(page.getByText('Restaurant', { exact: true })).toBeVisible();
+  await page.screenshot({
+    path: `/tmp/concierge-history-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+});
+test('fully booked and no-answer scenarios fail cleanly and unlock the composer', async ({
+  page,
+}) => {
+  await page.goto('/chat/maya');
+  await page.getByLabel('Demo scenario').selectOption('fully_booked');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(
+    page.getByText('The restaurant is fully booked. No reservation or payment was made.'),
+  ).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('button', { name: 'Approve £20.00' })).toHaveCount(0);
+  await page.getByLabel('Demo scenario').selectOption('no_answer');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(
+    page.getByText('The restaurant did not answer. Try again or choose another restaurant.'),
+  ).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('textbox', { name: 'Message Maya' })).toBeEnabled();
+});
+test('active tasks block deletion until the deposit is declined', async ({ page }) => {
+  await page.goto('/chat/maya');
+  await page.getByLabel('Demo scenario').selectOption('declined_deposit');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByRole('button', { name: 'Decline', exact: true })).toBeVisible({
+    timeout: 15000,
+  });
+  await page
+    .getByRole('navigation')
+    .getByRole('link', { name: /Agents/ })
+    .click();
+  await page.getByLabel('Manage agent').click();
+  await page.getByRole('button', { name: 'Delete agent', exact: true }).click();
+  await expect(
+    page.getByRole('dialog').getByRole('button', { name: 'Delete agent', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('navigation').getByRole('link', { name: 'Chat', exact: true }).click();
+  await page.getByRole('button', { name: 'Decline', exact: true }).click();
+  await expect(page.getByText('Your decision, respected.')).toBeVisible();
+  await page
+    .getByRole('navigation')
+    .getByRole('link', { name: /Agents/ })
+    .click();
+  await page.getByLabel('Manage agent').click();
+  await page.getByRole('button', { name: 'Delete agent', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete agent', exact: true }).click();
+  await page.getByRole('navigation').getByRole('link', { name: 'History', exact: true }).click();
+  await page.locator('.history-row').click();
+  await expect(page.getByText('Your decision, respected.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open chat' })).toHaveCount(0);
+});

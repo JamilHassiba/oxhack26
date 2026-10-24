@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   Link,
   NavLink,
@@ -9,7 +9,7 @@ import {
   useNavigate,
   useSearchParams,
 } from 'react-router-dom';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowDownToLine,
   ArrowRight,
@@ -25,133 +25,25 @@ import {
   CreditCard,
   ExternalLink,
   LayoutGrid,
+  History,
   LoaderCircle,
-  Mail,
   MessageSquare,
   Phone,
   Plus,
-  Radio,
   ShieldCheck,
   Sparkles,
-  X,
 } from 'lucide-react';
-import { api, BASE, DEMO, downloadCalendar } from './api';
-import type { Agent, AgentInput, CallEvent, CalendarEvent, Payment, Task, Tool } from './types';
-const tools = {
-  phone: { label: 'Phone calls', icon: Phone, description: 'Make calls on your behalf' },
-  email: { label: 'Email', icon: Mail, description: 'Send confirmation emails' },
-  calendar: { label: 'Calendar', icon: CalendarDays, description: 'Keep your plans in one place' },
-  payments: {
-    label: 'Payments',
-    icon: CreditCard,
-    description: 'Test payments, with your approval',
-  },
-};
-const shortcuts = {
-  call: {
-    label: 'Make a call',
-    icon: Phone,
-    tool: 'phone' as Tool,
-    prompt: 'Book a table for 4 at The Ivy Oxford tomorrow at 6pm. They may ask for a £20 deposit.',
-  },
-  email: {
-    label: 'Send an email',
-    icon: Mail,
-    tool: 'email' as Tool,
-    prompt: 'Draft and send an email. Ask me for the recipient and message before sending.',
-  },
-  calendar: {
-    label: 'Plan my day',
-    icon: CalendarDays,
-    tool: 'calendar' as Tool,
-    prompt: 'Help me organise my schedule for tomorrow.',
-  },
-};
-const dateTime = (date: string) =>
-  new Date(date).toLocaleString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-const money = (amount: number, currency: string) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(amount / 100);
-const labels = {
-  planning: 'Thinking it through',
-  calling: 'On the call',
-  awaiting_approval: 'Needs your approval',
-  done: 'Completed',
-  failed: 'Needs attention',
-};
-function Avatar({ agent, small = false }: { agent?: Agent; small?: boolean }) {
-  return (
-    <span className={`avatar ${agent?.id === 'leo' ? 'lavender' : ''} ${small ? 'small' : ''}`}>
-      {agent?.name.charAt(0).toUpperCase() || 'C'}
-      <span />
-    </span>
-  );
-}
-function ErrorNotice({ error, retry }: { error: unknown; retry?: () => void }) {
-  return (
-    <div role="alert" className="error-notice">
-      <span>
-        {error instanceof Error ? error.message : 'Something went wrong. Please try again.'}
-      </span>
-      {retry && (
-        <button className="text-button" onClick={retry}>
-          Try again <ArrowRight size={14} />
-        </button>
-      )}
-    </div>
-  );
-}
-function Loading() {
-  return (
-    <div className="loading" role="status">
-      <LoaderCircle className="spin" size={22} /> Getting everything ready…
-    </div>
-  );
-}
-function Empty({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
-  return (
-    <div className="empty">
-      <span className="empty-icon">{icon}</span>
-      <h3>{title}</h3>
-      <p>{children}</p>
-    </div>
-  );
-}
-function useAgents() {
-  return useQuery({ queryKey: ['agents'], queryFn: api.agents });
-}
-function useTasks(agentId: string) {
-  return useQuery({
-    queryKey: ['tasks', agentId],
-    queryFn: () => api.tasks(agentId),
-    enabled: !!agentId,
-    refetchInterval: 1200,
-    refetchIntervalInBackground: true,
-  });
-}
-function useWorkspaceTasks() {
-  const agents = useAgents();
-  const queries = useQueries({
-    queries: (agents.data || []).map((agent) => ({
-      queryKey: ['tasks', agent.id],
-      queryFn: () => api.tasks(agent.id),
-      refetchInterval: 1200,
-    })),
-  });
-  return {
-    tasks: queries.flatMap((q) => q.data || []),
-    isPending: agents.isPending || queries.some((q) => q.isPending),
-    error: agents.error || queries.find((q) => q.error)?.error,
-    retry: () => {
-      agents.refetch();
-      queries.forEach((q) => q.refetch());
-    },
-  };
-}
+import { api, DEMO, downloadCalendar } from './api';
+import { tools, shortcuts, dateTime } from './config';
+import { Avatar, ErrorNotice, Loading, Empty, Modal, PageHeading } from './components/ui';
+import { TaskCard, PaymentCard } from './components/TaskCard';
+import { useAgents, useTasks, useWorkspaceTasks } from './state';
+import { AgentEditor } from './features/agents/AgentEditor';
+import type { Agent, CalendarEvent, Tool } from './types';
+import { AgentActions } from './features/agents/AgentActions';
+import { HistoryPage, TaskDetailPage } from './features/history/HistoryPage';
+import { ScenarioPicker } from './features/demo/ScenarioPicker';
+import { scenarios, type DemoScenario } from './features/demo/scenarios';
 export default function App() {
   const { data: agents = [] } = useAgents();
   const [help, setHelp] = useState(false);
@@ -171,6 +63,9 @@ export default function App() {
           </NavLink>
           <NavLink to="/chat">
             <MessageSquare size={19} /> Chat
+          </NavLink>
+          <NavLink to="/history">
+            <History size={19} /> History
           </NavLink>
           <NavLink to="/calendar">
             <CalendarDays size={19} /> Calendar
@@ -214,6 +109,8 @@ export default function App() {
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/chat" element={<ChatRedirect />} />
             <Route path="/chat/:agentId" element={<ChatPage />} />
+            <Route path="/history" element={<HistoryPage />} />
+            <Route path="/history/:taskId" element={<TaskDetailPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
@@ -237,25 +134,6 @@ export default function App() {
           </button>
         </Modal>
       )}
-    </div>
-  );
-}
-function PageHeading({
-  title,
-  description,
-  action,
-}: {
-  title: string;
-  description: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="page-heading">
-      <div>
-        <h1>{title}</h1>
-        <p>{description}</p>
-      </div>
-      {action}
     </div>
   );
 }
@@ -332,6 +210,25 @@ function AgentsPage() {
             <ChevronLeft size={25} />
           </button>
           <article className="selected-agent" aria-label={`${agent.name} permissions`}>
+            <AgentActions
+              key={agent.id}
+              agent={{ ...agent, tools: enabled }}
+              disabled={enter.isPending}
+              onSaved={(saved) => {
+                selectAgent(saved.id);
+                setDrafts((old) => {
+                  const next = { ...old };
+                  delete next[saved.id];
+                  return next;
+                });
+                enter.reset();
+              }}
+              onDeleted={() => {
+                const remaining = agents.filter((a) => a.id !== agent.id);
+                selectAgent(remaining[Math.min(index, remaining.length - 1)]?.id || '');
+                enter.reset();
+              }}
+            />
             <div className="selected-agent-identity">
               <Avatar agent={agent} />
               <h2>{agent.name}</h2>
@@ -408,139 +305,12 @@ function AgentsPage() {
         </Empty>
       )}
       {creating && (
-        <AgentModal
+        <AgentEditor
           onClose={() => setCreating(false)}
           onCreated={(agent) => selectAgent(agent.id)}
         />
       )}
     </div>
-  );
-}
-function Modal({
-  title,
-  children,
-  onClose,
-}: {
-  title: string;
-  children: ReactNode;
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const dialog = ref.current!;
-    dialog.showModal();
-    return () => dialog.close();
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      className="modal"
-      onCancel={onClose}
-      onClick={(e) => {
-        if (e.target === ref.current) onClose();
-      }}
-    >
-      <div className="modal-header">
-        <h2>{title}</h2>
-        <button className="icon-button" aria-label="Close dialog" onClick={onClose}>
-          <X size={20} />
-        </button>
-      </div>
-      {children}
-    </dialog>
-  );
-}
-function AgentModal({
-  onClose,
-  onCreated,
-}: {
-  onClose: () => void;
-  onCreated?: (agent: Agent) => void;
-}) {
-  const client = useQueryClient();
-  const [enabled, setEnabled] = useState<Tool[]>(['phone', 'email', 'calendar', 'payments']);
-  const mutation = useMutation({
-    mutationFn: api.createAgent,
-    onSuccess: (agent) => {
-      client.invalidateQueries({ queryKey: ['agents'] });
-      onCreated?.(agent);
-      onClose();
-    },
-  });
-  function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const input: AgentInput = {
-      name: String(data.get('name')).trim(),
-      persona: String(data.get('persona')).trim(),
-      voice: String(data.get('voice')),
-      tools: enabled,
-    };
-    if (input.name && input.persona) mutation.mutate(input);
-  }
-  return (
-    <Modal title="Create an agent" onClose={onClose}>
-      <form onSubmit={submit}>
-        <label>
-          Agent name
-          <input name="name" placeholder="e.g. Maya" required maxLength={40} autoFocus />
-        </label>
-        <label>
-          Personality & instructions
-          <textarea
-            name="persona"
-            placeholder="A thoughtful concierge who handles bookings and everyday errands…"
-            required
-            maxLength={1500}
-            rows={3}
-          />
-        </label>
-        <label>
-          Voice
-          <select name="voice">
-            <option>Warm & natural</option>
-            <option>Calm & clear</option>
-            <option>Bright & friendly</option>
-          </select>
-        </label>
-        <fieldset>
-          <legend>Tools</legend>
-          <div className="tool-options">
-            {Object.entries(tools).map(([key, tool]) => {
-              const Icon = tool.icon;
-              return (
-                <label
-                  key={key}
-                  className={`tool-option ${enabled.includes(key as Tool) ? 'selected' : ''}`}
-                >
-                  <Icon size={19} />
-                  <span>
-                    <strong>{tool.label}</strong>
-                    <small>{tool.description}</small>
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={enabled.includes(key as Tool)}
-                    onChange={(e) =>
-                      setEnabled(
-                        e.target.checked
-                          ? [...enabled, key as Tool]
-                          : enabled.filter((t) => t !== key),
-                      )
-                    }
-                  />
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
-        {mutation.isError && <ErrorNotice error={mutation.error} />}
-        <button className="primary full" disabled={mutation.isPending}>
-          {mutation.isPending ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />}{' '}
-          Create agent
-        </button>
-      </form>
-    </Modal>
   );
 }
 function ChatRedirect() {
@@ -577,6 +347,8 @@ function ChatPage() {
   const tasks = useTasks(agentId);
   const client = useQueryClient();
   const [message, setMessage] = useState('');
+  const [scenario, setScenario] = useState<DemoScenario | undefined>();
+  useEffect(() => setScenario(undefined), [agentId]);
   const composer = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const shortcut = shortcuts[action as keyof typeof shortcuts];
@@ -587,10 +359,11 @@ function ChatPage() {
   }, [agentId, action, agent?.id]);
   const bottom = useRef<HTMLDivElement>(null);
   const send = useMutation({
-    mutationFn: (text: string) => api.send(agentId, text),
+    mutationFn: (text: string) => api.send(agentId, text, { scenario }),
     onSuccess: () => {
       setMessage('');
       client.invalidateQueries({ queryKey: ['tasks', agentId] });
+      client.invalidateQueries({ queryKey: ['history'] });
     },
   });
   const list = tasks.data || [];
@@ -660,7 +433,11 @@ function ChatPage() {
                         <button
                           key={key}
                           onClick={() => {
-                            setMessage(shortcut.prompt);
+                            setMessage(
+                              DEMO && key === 'call'
+                                ? scenarios[scenario || 'success'].prompt
+                                : shortcut.prompt,
+                            );
                             composer.current?.focus();
                           }}
                         >
@@ -687,6 +464,12 @@ function ChatPage() {
                   <div className="assistant-body">
                     <strong>
                       {agent.name} <small>{dateTime(task.created_at)}</small>
+                      <Link
+                        className="task-history-link"
+                        to={`/history/${encodeURIComponent(task.id)}`}
+                      >
+                        View task
+                      </Link>
                     </strong>
                     <TaskCard task={task} agent={agent} />
                   </div>
@@ -695,6 +478,17 @@ function ChatPage() {
             ))}
             <div ref={bottom} />
           </div>
+          {DEMO && agent.tools.includes('phone') && (
+            <ScenarioPicker
+              value={scenario || 'success'}
+              disabled={active || send.isPending}
+              onChange={(value) => {
+                setScenario(value);
+                setMessage(scenarios[value].prompt);
+                composer.current?.focus();
+              }}
+            />
+          )}
           <form className="composer" onSubmit={submit}>
             <label className="sr-only" htmlFor="message">
               Message {agent.name}
@@ -745,234 +539,6 @@ function ChatPage() {
           </div>
         </section>
       </div>
-    </div>
-  );
-}
-function useCallEvents(task: Task) {
-  const [events, setEvents] = useState<CallEvent[]>([]);
-  const [reconnecting, setReconnecting] = useState(false);
-  const callId = task.call?.id;
-  const terminal = task.status === 'done' || task.status === 'failed';
-  useEffect(() => {
-    setEvents([]);
-    setReconnecting(false);
-    if (DEMO || !callId || terminal) return;
-    const stream = new EventSource(`${BASE}/calls/${encodeURIComponent(callId)}/events/stream`);
-    const receive = (message: MessageEvent) => {
-      try {
-        const event: CallEvent = JSON.parse(message.data);
-        if (!event.kind || !event.ts || event.call_id !== callId) return;
-        setEvents((old) =>
-          old.some(
-            (e) =>
-              e.ts === event.ts &&
-              e.kind === event.kind &&
-              JSON.stringify(e.payload) === JSON.stringify(event.payload),
-          )
-            ? old
-            : [...old, event],
-        );
-        setReconnecting(false);
-      } catch {
-        /* Ignore incomplete or heartbeat frames. */
-      }
-    };
-    stream.onmessage = receive;
-    for (const kind of [
-      'dialing',
-      'ringing',
-      'answered',
-      'transcript_line',
-      'tool_call',
-      'payment',
-      'ended',
-    ])
-      stream.addEventListener(kind, receive as EventListener);
-    stream.onopen = () => setReconnecting(false);
-    stream.onerror = () => setReconnecting(true);
-    return () => stream.close();
-  }, [callId, terminal]);
-  const combined = [...(task.events || [])];
-  for (const e of events)
-    if (
-      !combined.some(
-        (x) =>
-          x.ts === e.ts &&
-          x.kind === e.kind &&
-          JSON.stringify(x.payload) === JSON.stringify(e.payload),
-      )
-    )
-      combined.push(e);
-  return { events: combined.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts)), reconnecting };
-}
-function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
-  const { events, reconnecting } = useCallEvents(task);
-  const [now, setNow] = useState(Date.now());
-  const running = !['done', 'failed'].includes(task.status);
-  useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [running]);
-  const duration = task.call
-    ? Math.max(
-        0,
-        Math.floor(
-          ((task.call.ended_at ? Date.parse(task.call.ended_at) : now) -
-            Date.parse(task.call.started_at)) /
-            1000,
-        ),
-      )
-    : 0;
-  const streamed = events
-    .filter((e) => e.kind === 'transcript_line')
-    .map((e) => ({ speaker: e.payload.speaker || agent.name, text: e.payload.text || '' }));
-  const transcript = streamed.length ? streamed : task.call?.transcript || [];
-  return (
-    <div className={`task-card ${task.status === 'failed' ? 'failed' : ''}`}>
-      <div className="task-card-header">
-        <span className="call-icon">
-          {task.call ? <Phone size={17} /> : <Sparkles size={17} />}
-        </span>
-        <div>
-          <strong>{task.call ? 'Phone call' : 'Task'}</strong>
-          <small>
-            {task.call
-              ? `${DEMO ? 'Simulated call' : 'Phone call'} · ${String(Math.floor(duration / 60)).padStart(2, '0')}:${String(duration % 60).padStart(2, '0')}`
-              : agent.name}
-          </small>
-        </div>
-        <span className={`status-chip ${task.status}`}>
-          {running && <span className="pulse-dot" />}
-          {task.status === 'done' && <Check size={12} />}
-          {labels[task.status]}
-        </span>
-      </div>
-      {task.summary && (
-        <div className={`summary ${task.status === 'failed' ? 'summary-error' : ''}`}>
-          <span>
-            {task.status === 'failed' ? <CircleHelp size={18} /> : <CheckCheck size={18} />}
-          </span>
-          <div>
-            <strong>
-              {task.status === 'failed'
-                ? 'Let’s try another way'
-                : task.payment?.status === 'denied'
-                  ? 'Your decision, respected.'
-                  : 'All taken care of.'}
-            </strong>
-            <p>{task.summary}</p>
-            {task.status === 'failed' && <small>Send a new message below to try again.</small>}
-          </div>
-        </div>
-      )}
-      {task.payment && <PaymentCard payment={task.payment} agentId={task.agent_id} />}
-      {task.call && (
-        <details className="call-details" open={running}>
-          <summary>
-            <Radio size={15} />
-            <strong>{running ? 'Live transcript' : 'Call transcript'}</strong>
-            {DEMO && <span>Simulated</span>}
-          </summary>
-          <div className="event-timeline">
-            {events
-              .filter((e) => e.kind !== 'transcript_line')
-              .map((e, i) => (
-                <span key={`${e.ts}-${i}`} title={e.payload.text}>
-                  <i />
-                  {e.kind === 'payment'
-                    ? 'Approval'
-                    : e.kind === 'ended'
-                      ? 'Finished'
-                      : e.kind.charAt(0).toUpperCase() + e.kind.slice(1)}
-                </span>
-              ))}
-          </div>
-          <div className="transcript">
-            {transcript.length ? (
-              transcript.map((line, i) => (
-                <div
-                  className={`transcript-line ${line.speaker === agent.name ? 'agent-line' : ''}`}
-                  key={i}
-                >
-                  <span>{line.speaker}</span>
-                  <p>{line.text}</p>
-                </div>
-              ))
-            ) : (
-              <p className="muted">Waiting for the call to connect…</p>
-            )}
-            {reconnecting && (
-              <p className="muted" role="status">
-                Reconnecting to the live stream. Checking task updates in the meantime.
-              </p>
-            )}
-          </div>
-        </details>
-      )}
-      {task.calendar_event && (
-        <Link className="calendar-result" to="/calendar">
-          <CalendarDays size={20} />
-          <div>
-            <strong>{task.calendar_event.title}</strong>
-            <small>{dateTime(task.calendar_event.starts_at)}</small>
-          </div>
-          <ArrowRight size={16} />
-        </Link>
-      )}
-    </div>
-  );
-}
-function PaymentCard({ payment, agentId }: { payment: Payment; agentId: string }) {
-  const client = useQueryClient();
-  const decision = useMutation({
-    mutationFn: (approve: boolean) => api.decide(payment.id, approve),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ['tasks', agentId] });
-      client.invalidateQueries({ queryKey: ['calendar'] });
-      client.invalidateQueries({ queryKey: ['analytics'] });
-    },
-  });
-  return (
-    <div className={`payment-card ${payment.status === 'pending_approval' ? 'pending' : ''}`}>
-      <div className="payment-title">
-        <span className="payment-icon">
-          <CreditCard size={21} />
-        </span>
-        <div>
-          <strong>
-            {payment.status === 'pending_approval'
-              ? 'Approve deposit'
-              : payment.status === 'denied'
-                ? 'Payment declined'
-                : 'Payment approved'}
-          </strong>
-          <small>{payment.merchant || 'Booking deposit'}</small>
-        </div>
-        <b>{money(payment.amount, payment.currency)}</b>
-      </div>
-      {payment.status === 'pending_approval' && (
-        <div className="payment-actions">
-          <button
-            className="primary"
-            onClick={() => decision.mutate(true)}
-            disabled={decision.isPending}
-          >
-            <Check size={17} /> Approve {money(payment.amount, payment.currency)}
-          </button>
-          <button
-            className="secondary"
-            onClick={() => decision.mutate(false)}
-            disabled={decision.isPending}
-          >
-            Decline
-          </button>
-        </div>
-      )}
-      <small className="payment-disclaimer">
-        <ShieldCheck size={13} /> Test payment · No real charge
-      </small>
-      {decision.isError && <ErrorNotice error={decision.error} />}
     </div>
   );
 }
