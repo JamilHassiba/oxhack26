@@ -1,1 +1,1 @@
-"""`send_email` tool via Resend. Owner: Alex."""
+"""`send_email` tool via Resend. Owner: Evan."""

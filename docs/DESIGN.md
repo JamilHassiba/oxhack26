@@ -65,12 +65,13 @@ Safety rails (also good demo talking points):
 
 ```sql
 users(id, email, name, phone)                    -- single demo user is fine
-agents(id, user_id, name, persona, voice_id, tools jsonb, elevenlabs_agent_id, created_at)
+agents(id, user_id, name, persona, voice, tools jsonb, elevenlabs_agent_id, created_at)  -- voice is a label; Jamil maps it to an ElevenLabs voice ID
+contacts(id, name, phone)                        -- seeded; the demo restaurant points at a teammate's number
 messages(id, agent_id, role, content, created_at)         -- chat history
 tasks(id, agent_id, goal, status, summary, created_at)    -- status: planning|calling|awaiting_approval|done|failed
 calls(id, task_id, to_number, el_conversation_id, status, started_at, ended_at,
       transcript jsonb, summary, outcome jsonb)
-payments(id, task_id, amount, currency, status, stripe_pi_id)  -- pending_approval|approved|paid|denied
+payments(id, task_id, amount int, currency, merchant, status, stripe_pi_id)  -- amount in pence (2000 = £20); pending_approval|approved|paid|denied
 calendar_events(id, task_id, title, starts_at, ends_at, location)
 
 -- Tiger Data: time-series event log
@@ -89,6 +90,8 @@ Tiger Data usage to show off:
 ```
 POST   /agents                    create agent (name, persona, tools, voice)
 GET    /agents, GET /agents/{id}
+PATCH  /agents/{id}               update an agent's tools
+GET    /agents/{id}/tasks         all tasks for an agent (same shape as GET /tasks/{id})
 POST   /agents/{id}/chat          send message → starts/continues a task; returns task_id
 GET    /tasks/{id}                task + call + payment + calendar state
 GET    /calls/{id}/events/stream  SSE of call_events (live transcript)
@@ -141,9 +144,9 @@ Local development: backend with `uvicorn app.main:app --reload` in a virtualenv;
 
 Split by ownership (details per person in [PLAN.md](PLAN.md)):
 
-- **Jamil: Voice & infra.** ElevenLabs + Twilio, call lifecycle and webhooks, Vultr deploy, Tiger Data schema/migrations.
-- **Alex: Orchestrator & tools.** Gemini loop, tool layer (phone wrapper, email, calendar, payments), chat/agents/tasks API.
-- **Evan: Frontend.** Everything in React + TS (Vite), SSE live view, analytics page, then demo polish and the DEV post.
+- **Jamil: Voice & data.** ElevenLabs + Twilio, call lifecycle and webhooks, call events and SSE, Tiger Data schema/migrations and analytics.
+- **Alex: Orchestrator.** Gemini loop, chat endpoint, phone and contact tools, payments.
+- **Evan: Frontend, API & deploy.** The React + TS (Vite) frontend (done), agents/tasks/calendar API, calendar and email tools, Vultr deploy, demo and DEV post.
 
 The shared contract is the OpenAPI schema plus the `call_events` kinds in section 4. Agree both in the first hour so the three can work in parallel.
 

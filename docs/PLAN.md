@@ -2,112 +2,84 @@
 
 Companion to [DESIGN.md](DESIGN.md). Read that first for architecture, data model and API.
 
-| | Jamil: Voice & Infra | Alex: Orchestrator & Tools | Evan: Frontend |
+**Updated after the frontend was finished.** Evan's UI is done and merged, so he now takes some backend work and the deployment. The lists below are what's **left**, in priority order: do the top item first.
+
+| | Jamil: Voice & Data | Alex: Orchestrator | Evan: Frontend, API & Deploy |
 |---|---|---|---|
-| Owns | ElevenLabs, Twilio, webhooks, call lifecycle, Tiger Data, Vultr | Gemini loop, tool layer, chat/agents/tasks API | All React + TS (Vite) UI, SSE, demo polish, DEV post |
-| Sponsors | ElevenLabs, Tiger Data, Vultr | Gemini API | DEV challenge, demo/pitch |
-| Main dirs | `backend/app/services/elevenlabs.py`, `routers/webhooks.py`, `migrations/`, `deploy/` | `backend/app/orchestrator/`, `tools/`, `routers/{agents,chat,tasks,payments}.py` | `frontend/` |
+| Owns | ElevenLabs, Twilio, webhooks, call events, Tiger Data, migrations | Gemini loop, chat endpoint, call tool, payments | Frontend, agents/tasks/calendar API, email + calendar tools, Vultr deploy |
+| Sponsors | ElevenLabs, Tiger Data | Gemini API | Vultr, DEV challenge, demo/pitch |
+| Main files | `services/elevenlabs.py`, `services/events.py`, `routers/{webhooks,events,analytics}.py`, `migrations/` | `orchestrator/`, `tools/{phone,payments}.py`, `routers/{chat,payments}.py` | `frontend/`, `routers/{agents,tasks,calendar}.py`, `tools/{calendar,email}.py`, `deploy/` |
 
-## Shared agreements (first hour, all three)
+## Status
 
-1. **Repo layout** and git flow: trunk-based, small PRs to `main`, rebase before merge. Each person works in their own directories to avoid conflicts.
-2. **API contract**: agree endpoint shapes from DESIGN.md section 5. Alex owns the FastAPI route definitions; Evan generates the TS client from `/openapi.json` and mocks until routes land.
-3. **`call_events.kind` values and payload shapes** (DESIGN.md section 4). Jamil writes them, Alex and Evan read them. Write the payload shapes in `docs/EVENTS.md` before anyone codes against them.
-4. **Env/secrets**: `.env.example` committed, real `.env` shared privately (ElevenLabs, Gemini, Twilio, Stripe test, Resend, DB URL).
-5. **Demo scenario and who plays the restaurant** (decide before hour 3).
+| Who | Done | In progress |
+|---|---|---|
+| Jamil | Design docs, repo skeleton | DB + migrations, voice spike |
+| Alex | Backend skeleton, call contract, Gemini loop with a fake tool (on branches, not merged yet) | Merging to main |
+| Evan | **Frontend MVP merged to main.** All pages built, works fully in demo mode, build + 10 tests pass | Backend tasks below |
 
-## Jamil: Voice & Infra
+## Decisions from the frontend review
 
-**Phase 0 (h0–3)**
-- Create ElevenLabs Conversational AI agent; buy/verify Twilio number; connect it in ElevenLabs.
-- Script: place an outbound call to a teammate's phone. **Spike:** what is available during the call (poll the conversation API?) versus only after (post-call webhook)? Write findings in `docs/EVENTS.md`. This decides the live-transcript approach.
-- Create Tiger Cloud DB. Write migrations for all tables and the `call_events` hypertable. Share the connection string.
+The frontend was built before the backend existed, so it assumes some things the design didn't have. These are now decided, so nobody needs to discuss them again:
 
-**Phase 1 (h3–10)**
-- `services/elevenlabs.py`: `start_call(to_number, brief) -> conversation_id` using dynamic variables for the brief (goal, constraints, fallbacks, user name, AI-disclosure opener).
-- `POST /webhooks/elevenlabs/post-call`: verify signature, store transcript and analysis on `calls`, emit `ended` event, trigger Alex's `on_call_finished(call_id)`.
-- Write `call_events` for every lifecycle step (dialing, answered, ended, plus transcript lines via polling if the spike allows).
-- Phone allowlist and call duration cap in config.
-- Deploy (no Docker): Ubuntu VM on Vultr, backend in a virtualenv run by systemd (`deploy/oxhack-api.service`), Caddy for HTTPS, the Vite frontend build and the `/api` proxy (`deploy/Caddyfile`), domain pointed at the VM. Webhook URL registered with ElevenLabs. Deploy script (`deploy/deploy.sh`).
+1. **The frontend's types are the API contract.** `frontend/src/types.ts` defines exactly what each endpoint returns (`Agent`, `Task`, `Payment`, `CalendarEvent`, `CallEvent`, `Analytics`). The backend returns those shapes. If you need to change one, tell Evan.
+2. **Agents have a `voice` label**, not a voice ID (for example `"Warm & natural"`). Jamil maps labels to ElevenLabs voice IDs in his code.
+3. **New endpoints:** `PATCH /agents/{id}` (save an agent's tools) and `GET /agents/{id}/tasks` (list an agent's tasks). The second one lets the frontend stop remembering task IDs in browser storage, which would break if the demo runs on a different laptop.
+4. **Payment amounts are whole pence**: `2000` means £20. Payments also have a `merchant` name.
+5. **`start_call` returns our `call_id`** (the ID of the `calls` row), not the ElevenLabs conversation ID. `on_call_finished` takes the same `call_id`. Everything else in Alex's contract (`backend/app/contracts.py` on his branch) stays as he wrote it.
+6. **Where phone numbers come from:** a `contacts` table seeded with the demo restaurant, pointing at a teammate's phone. Alex adds a `lookup_contact` tool so Gemini can find the number.
+7. **Follow-up questions:** the chat box is locked while a task runs, so the agent can't ask a question mid-task. If information is missing, the task ends with a summary asking for it, and the user sends a new message. Alex includes the agent's last few tasks (goal + summary) in Gemini's context so the new message has context.
+8. **Call events use Evan's format:** `{ts, call_id, kind, payload: {speaker?, text?}}`, with the kinds `dialing`, `ringing`, `answered`, `transcript_line`, `tool_call`, `payment`, `ended`. Jamil writes this into `docs/EVENTS.md`.
+9. **Demo mode stays as a backup.** The frontend's built-in simulated demo (`VITE_DEMO_MODE`, on by default) is our fallback if real calls fail on stage. The production build sets `VITE_DEMO_MODE=false`.
 
-**Phase 2 (h10–18)**
-- Mid-call server tools: `POST /webhooks/elevenlabs/tools/{name}` for `request_payment_approval` and `check_calendar`. Hold the request until the user approves (poll the `payments` row, with timeout) or return "pending" and let the agent say it will follow up.
-- Tune the voice agent prompt for the restaurant scenario: polite, concise, handles "full at 6pm" with the fallback times.
+## Jamil: Voice & Data
 
-**Phase 3 (h18–24)**
-- SSE endpoint `GET /calls/{id}/events/stream` reading `call_events` (LISTEN/NOTIFY or short polling).
-- Continuous aggregate + `GET /analytics/summary` (calls per agent per hour, success rate, avg duration).
-- Fallback if live transcript isn't possible: replay stored transcript through `call_events` with timing.
+1. **Database first (unblocks everyone).** Create the Tiger Cloud DB, share the connection string, and write `migrations/001_init.sql` with the decisions above (`agents.voice`, `payments.amount` in pence + `merchant`, `contacts` table seeded with the demo restaurant, `call_events` hypertable). Write `scripts/migrate.py`.
+2. **`docs/EVENTS.md`** using decision 8.
+3. **Voice spike:** ElevenLabs agent + Twilio number, one outbound call to your phone. Find out whether the transcript is available during the call or only after. Write the answer in `EVENTS.md`.
+4. **`start_call`:** first a stub that inserts the `calls` row and returns `call_id` (hand to Alex straight away), then the real ElevenLabs call with the allowlist and duration cap.
+5. **Post-call webhook:** store transcript, summary and outcome on `calls`, emit `ended`, then call Alex's `on_call_finished(call_id)`.
+6. **Mid-call payment tool:** `request_payment_approval` creates a `pending_approval` payment and waits (with a timeout) for the user to approve in the UI.
+7. **Live events:** `GET /calls/{id}/events/stream` (SSE). If the spike says live transcripts aren't possible, replay the stored transcript as events.
+8. **Analytics:** continuous aggregate + `GET /analytics/summary`, returning the `Analytics` type from the frontend.
+9. Voice prompt tuning for the restaurant scenario. ElevenLabs + Tiger Data bullets for the submission.
 
-**Phase 4 (h24–30)**
-- Production hardening: env vars, restart policies, logs. Rehearse the call end-to-end on the Vultr deployment. Record the fallback demo video. Write the Tiger Data and Vultr bullets for the submission.
+**Done when:** a call placed from the app to a real phone produces a stored transcript and a live event stream.
 
-**Done when:** a call placed from the deployed app to a real phone produces a stored transcript and a live event stream.
+## Alex: Orchestrator
 
-## Alex: Orchestrator & Tools
+1. **Merge your branches into main** (`p2/backend-skeleton`, `p2/call-contract`, `p2/gemini-loop`). Main's backend files currently hold only header comments, so keep your versions. Apply decision 5 to `contracts.py`.
+2. **`POST /agents/{id}/chat`:** save the message, create the task, run `run_task` in the background, return `task_id`.
+3. **`place_call` + `lookup_contact` tools**, wired to Jamil's `start_call` (use his stub until the real one lands).
+4. **`on_call_finished(call_id)`:** read the transcript, extract the outcome (booked? time? deposit?), then have Gemini call the calendar and email tools and write the summary.
+5. **Payments:** `POST /payments/{id}/approve` and `/deny`, then a Stripe test-mode charge after approval (`tools/payments.py`).
+6. **Context for follow-ups** (decision 7).
+7. **Robustness:** no answer, voicemail, fully booked (try the fallback time, at most 2 calls). Prompt tuning, low temperature, test with 5+ different requests.
+8. Gemini bullets for the submission. Bug bash.
 
-**Phase 0 (h0–3)**
-- FastAPI skeleton: app factory, config, db session (coordinate with Jamil), health route.
-- Gemini function-calling hello world: one fake tool, confirm the loop (model → tool call → result → model) works with the SDK.
-
-**Phase 1 (h3–10)**
-- Agents CRUD (`/agents`) with `persona` and `tools` array.
-- `POST /agents/{id}/chat`: create `tasks` row, run orchestrator, return `task_id` immediately (run loop as a background task).
-- Orchestrator: builds the system prompt from agent name/persona, declares only the agent's enabled tools, executes the loop, stores `messages`, logs each tool call as a `call_events`-style task event.
-- `place_call` tool: calls Jamil's `start_call`, sets task status `calling`, and ends the loop turn.
-- `on_call_finished(call_id)`: resumes the loop with the transcript/outcome and lets Gemini write the summary. Saves `tasks.summary`.
-
-**Phase 2 (h10–18)**
-- `create_calendar_event` tool + `calendar_events` table + `GET /calendar` and `/calendar.ics`.
-- `send_email` tool via Resend (confirmation to the user's email).
-- Payments: Stripe test-mode PaymentIntent; `payments` rows; `POST /payments/{id}/approve|deny`; `charge` tool only runs after approval.
-- Structured outcome extraction from the transcript (booked? time? deposit?) so the summary and calendar entry use real values.
-
-**Phase 3 (h18–24)**
-- Robustness: retries, schema validation of tool args, handling "no answer", "voicemail", "fully booked, use fallback time" (this can mean a second call, capped at 2).
-- Prompt tuning for the demo scenario; low temperature; test with 5+ varied requests.
-
-**Phase 4 (h24–30)**
-- Bug bash on the full flow. Write the Gemini section of the submission (function calling, structured extraction). Help with the DEV post.
+You **declare** the calendar and email tools to Gemini; Evan writes the functions behind them.
 
 **Done when:** a chat message results in a call, a payment approval, a calendar event, an email and a summary, with no manual steps.
 
-## Evan: Frontend
+## Evan: Frontend, API & Deploy
 
-**Phase 0 (h0–3)**
-- Create the app in `frontend/` with `npm create vite@latest frontend -- --template react-ts`, then add Tailwind, React Router and TanStack Query. Configure the Vite dev proxy so `/api` goes to the backend on `localhost:8000`. Layout shell with nav (Agents, Chat, Calendar, Analytics).
-- Typed API client generated from OpenAPI; local mock server or MSW with fixtures so work isn't blocked on the backend.
+1. **Deploy to Vultr early** (webhooks need a public HTTPS URL, so Jamil is blocked without it): Ubuntu VM, domain, Caddy (`deploy/Caddyfile`: HTTPS, serve `frontend/dist`, proxy `/api` with buffering off for SSE), systemd service for the backend (`deploy/oxhack-api.service`), and `deploy/deploy.sh`. Build with `VITE_DEMO_MODE=false`. Start with a hello-world backend. Jamil is backup if you get stuck.
+2. **Agents API:** `GET/POST /agents`, `GET/PATCH /agents/{id}`, returning your `Agent` type.
+3. **Tasks API:** `GET /tasks/{id}` and `GET /agents/{id}/tasks`, returning your `Task` type (joins the task with its call, payment, calendar event and call events). Then switch the frontend from browser storage to `GET /agents/{id}/tasks`.
+4. **Calendar:** `create_calendar_event` function in `tools/calendar.py`, plus `GET /calendar` and `GET /calendar.ics`.
+5. **Email:** `send_email` function in `tools/email.py` via Resend.
+6. **Integration:** run the frontend against the real backend, `npm run api:generate`, fix any mismatches.
+7. **Demo and submission:** demo script and rehearsal, record the fallback video (demo mode is perfect for this), README, DEV post, Devpost/MLH page and sponsor opt-ins.
 
-**Phase 1 (h3–10)**
-- Agents page: list, create form (name, persona, voice, tool toggles).
-- Chat page: message thread per agent, send message, task status chip, polling `GET /tasks/{id}`.
-- Task card: shows summary when done.
-
-**Phase 2 (h10–18)**
-- Call card in chat: status, transcript (post-call), outcome.
-- Payment approval card (amount, merchant, Approve/Deny) wired to the approve/deny endpoints.
-- Calendar page: list/month view of events; "add to Google/Apple calendar" via `.ics` link.
-
-**Phase 3 (h18–24)**
-- Live call view: SSE hook for `call_events`; streaming transcript bubbles, event timeline (dialing → answered → payment → ended), call duration timer.
-- Analytics page: charts from `/analytics/summary` (calls over time, success rate per agent).
-- Empty/loading/error states; mobile-friendly enough for a projector.
-
-**Phase 4 (h24–30)**
-- Visual polish pass; seed 1–2 preset agents so the demo starts in one click.
-- Write and rehearse the demo script (DESIGN.md section 10), run it 3 times on the deployed site.
-- Write the DEV post and the Devpost/MLH submission text; screenshots and the fallback video.
-
-**Done when:** the full demo can run from the browser alone, and every state (calling, awaiting approval, done, failed) looks intentional.
+**Done when:** the full demo runs on the deployed site against the real backend, and the demo-mode fallback video is recorded.
 
 ## Timeline and sync points
 
 | Hour | Milestone | Who |
 |---|---|---|
-| 1 | Contracts agreed (repo, API, event kinds, env) | All |
-| 3 | Hello-world deployed on Vultr; outbound test call works; Gemini tool loop works; UI shell runs on mocks | All |
-| 10 | **Vertical slice**: chat → call → summary in UI | All |
-| 18 | Payments, calendar, email working end to end | Jamil + Alex, Evan UI |
+| Next 2h | DB live; Alex's branches merged; hello-world deployed on Vultr | All |
+| 10 | **Vertical slice**: chat → call → summary in the UI | All |
+| 18 | Payments, calendar, email working end to end | All |
 | 24 | **Feature freeze**: live view and analytics done | All |
 | 27 | Full rehearsal on production, fallback video recorded | All |
 | 30 | Submission in (Devpost/MLH, DEV post, sponsor forms) | All |
@@ -116,17 +88,23 @@ Sync: 5-minute standup every 3 hours. Anyone blocked for more than 20 minutes sa
 
 ## Cross-dependencies (where people block each other)
 
-- Alex needs Jamil's `start_call` and the DB schema by about hour 4. Jamil hands over a working stub early, even one that only inserts rows.
-- Evan depends on Alex's routes. Mock until they land, then switch the client base URL.
-- Evan's live view depends on Jamil's event stream. Until then, show events from polling `GET /tasks/{id}`.
-- Jamil's mid-call payment tool waits on Alex's `payments` endpoints (hour 10–12). Agree the table and statuses up front.
+- **Everyone needs Jamil's database.** That's why it's his first task.
+- **Jamil needs Evan's deployment** for ElevenLabs webhooks (or a tunnel like ngrok in the meantime).
+- Alex needs Jamil's `start_call` stub, then the real version.
+- Alex's `on_call_finished` calls Evan's calendar and email functions. Agree the function signatures in the stub files first.
+- Jamil's mid-call payment tool and Alex's approve/deny endpoints share the `payments` table and its statuses.
+- Evan's tasks API reads tables written by Jamil (`calls`, `call_events`) and Alex (`tasks`, `payments`).
+
+## Git workflow
+
+Branch from `main` for each task (`jamil/db`, `alex/chat-endpoint`, `evan/agents-api`), merge back to `main` as soon as it works, then pull `main` before starting the next task. Keep branches short-lived: hours, not days.
 
 ## Submission checklist (owner in brackets)
 
 - [ ] ElevenLabs: voice agent used for real calls, mention conversational AI + server tools (Jamil)
 - [ ] Gemini API: function calling + structured extraction (Alex)
 - [ ] Tiger Data: hypertable + continuous aggregate shown in the demo (Jamil)
-- [ ] Vultr: deployed app URL on the submission (Jamil)
+- [ ] Vultr: deployed app URL on the submission (Evan)
 - [ ] DEV post published (Evan)
 - [ ] README with setup, architecture diagram, demo video (Evan)
 - [ ] Devpost/MLH project page and sponsor challenge opt-ins (Evan)
