@@ -2,7 +2,7 @@
 
 Companion to [DESIGN.md](DESIGN.md). Read that first for architecture, data model and API.
 
-| | Person 1: Voice & Infra | Person 2: Orchestrator & Tools | Person 3: Frontend |
+| | Jamil: Voice & Infra | Alex: Orchestrator & Tools | Evan: Frontend |
 |---|---|---|---|
 | Owns | ElevenLabs, Twilio, webhooks, call lifecycle, Tiger Data, Vultr | Gemini loop, tool layer, chat/agents/tasks API | All React + TS UI, SSE, demo polish, DEV post |
 | Sponsors | ElevenLabs, Tiger Data, Vultr | Gemini API | DEV challenge, demo/pitch |
@@ -11,12 +11,12 @@ Companion to [DESIGN.md](DESIGN.md). Read that first for architecture, data mode
 ## Shared agreements (first hour, all three)
 
 1. **Repo layout** and git flow: trunk-based, small PRs to `main`, rebase before merge. Each person works in their own directories to avoid conflicts.
-2. **API contract**: agree endpoint shapes from DESIGN.md section 5. P2 owns the FastAPI route definitions; P3 generates the TS client from `/openapi.json` and mocks until routes land.
-3. **`call_events.kind` values and payload shapes** (DESIGN.md section 4). P1 writes them, P2 and P3 read them. Write the payload shapes in `docs/EVENTS.md` before anyone codes against them.
+2. **API contract**: agree endpoint shapes from DESIGN.md section 5. Alex owns the FastAPI route definitions; Evan generates the TS client from `/openapi.json` and mocks until routes land.
+3. **`call_events.kind` values and payload shapes** (DESIGN.md section 4). Jamil writes them, Alex and Evan read them. Write the payload shapes in `docs/EVENTS.md` before anyone codes against them.
 4. **Env/secrets**: `.env.example` committed, real `.env` shared privately (ElevenLabs, Gemini, Twilio, Stripe test, Resend, DB URL).
 5. **Demo scenario and who plays the restaurant** (decide before hour 3).
 
-## Person 1: Voice & Infra
+## Jamil: Voice & Infra
 
 **Phase 0 (h0–3)**
 - Create ElevenLabs Conversational AI agent; buy/verify Twilio number; connect it in ElevenLabs.
@@ -25,7 +25,7 @@ Companion to [DESIGN.md](DESIGN.md). Read that first for architecture, data mode
 
 **Phase 1 (h3–10)**
 - `services/elevenlabs.py`: `start_call(to_number, brief) -> conversation_id` using dynamic variables for the brief (goal, constraints, fallbacks, user name, AI-disclosure opener).
-- `POST /webhooks/elevenlabs/post-call`: verify signature, store transcript and analysis on `calls`, emit `ended` event, trigger P2's `on_call_finished(call_id)`.
+- `POST /webhooks/elevenlabs/post-call`: verify signature, store transcript and analysis on `calls`, emit `ended` event, trigger Alex's `on_call_finished(call_id)`.
 - Write `call_events` for every lifecycle step (dialing, answered, ended, plus transcript lines via polling if the spike allows).
 - Phone allowlist and call duration cap in config.
 - Deploy: Vultr VM, docker compose (backend, frontend static, Caddy), domain + HTTPS. Webhook URL registered with ElevenLabs. CI-less deploy script (`deploy/deploy.sh`).
@@ -44,17 +44,17 @@ Companion to [DESIGN.md](DESIGN.md). Read that first for architecture, data mode
 
 **Done when:** a call placed from the deployed app to a real phone produces a stored transcript and a live event stream.
 
-## Person 2: Orchestrator & Tools
+## Alex: Orchestrator & Tools
 
 **Phase 0 (h0–3)**
-- FastAPI skeleton: app factory, config, db session (coordinate with P1), health route.
+- FastAPI skeleton: app factory, config, db session (coordinate with Jamil), health route.
 - Gemini function-calling hello world: one fake tool, confirm the loop (model → tool call → result → model) works with the SDK.
 
 **Phase 1 (h3–10)**
 - Agents CRUD (`/agents`) with `persona` and `tools` array.
 - `POST /agents/{id}/chat`: create `tasks` row, run orchestrator, return `task_id` immediately (run loop as a background task).
 - Orchestrator: builds the system prompt from agent name/persona, declares only the agent's enabled tools, executes the loop, stores `messages`, logs each tool call as a `call_events`-style task event.
-- `place_call` tool: calls P1's `start_call`, sets task status `calling`, and ends the loop turn.
+- `place_call` tool: calls Jamil's `start_call`, sets task status `calling`, and ends the loop turn.
 - `on_call_finished(call_id)`: resumes the loop with the transcript/outcome and lets Gemini write the summary. Saves `tasks.summary`.
 
 **Phase 2 (h10–18)**
@@ -72,7 +72,7 @@ Companion to [DESIGN.md](DESIGN.md). Read that first for architecture, data mode
 
 **Done when:** a chat message results in a call, a payment approval, a calendar event, an email and a summary, with no manual steps.
 
-## Person 3: Frontend
+## Evan: Frontend
 
 **Phase 0 (h0–3)**
 - Vite + React + TS + Tailwind + React Router + TanStack Query. Layout shell with nav (Agents, Chat, Calendar, Analytics).
@@ -107,7 +107,7 @@ Companion to [DESIGN.md](DESIGN.md). Read that first for architecture, data mode
 | 1 | Contracts agreed (repo, API, event kinds, env) | All |
 | 3 | Hello-world deployed on Vultr; outbound test call works; Gemini tool loop works; UI shell runs on mocks | All |
 | 10 | **Vertical slice**: chat → call → summary in UI | All |
-| 18 | Payments, calendar, email working end to end | P1 + P2, P3 UI |
+| 18 | Payments, calendar, email working end to end | Jamil + Alex, Evan UI |
 | 24 | **Feature freeze**: live view and analytics done | All |
 | 27 | Full rehearsal on production, fallback video recorded | All |
 | 30 | Submission in (Devpost/MLH, DEV post, sponsor forms) | All |
@@ -116,17 +116,17 @@ Sync: 5-minute standup every 3 hours. Anyone blocked for more than 20 minutes sa
 
 ## Cross-dependencies (where people block each other)
 
-- P2 needs P1's `start_call` and the DB schema by about hour 4. P1 hands over a working stub early, even one that only inserts rows.
-- P3 depends on P2's routes. Mock until they land, then switch the client base URL.
-- P3's live view depends on P1's event stream. Until then, show events from polling `GET /tasks/{id}`.
-- P1's mid-call payment tool waits on P2's `payments` endpoints (hour 10–12). Agree the table and statuses up front.
+- Alex needs Jamil's `start_call` and the DB schema by about hour 4. Jamil hands over a working stub early, even one that only inserts rows.
+- Evan depends on Alex's routes. Mock until they land, then switch the client base URL.
+- Evan's live view depends on Jamil's event stream. Until then, show events from polling `GET /tasks/{id}`.
+- Jamil's mid-call payment tool waits on Alex's `payments` endpoints (hour 10–12). Agree the table and statuses up front.
 
 ## Submission checklist (owner in brackets)
 
-- [ ] ElevenLabs: voice agent used for real calls, mention conversational AI + server tools (P1)
-- [ ] Gemini API: function calling + structured extraction (P2)
-- [ ] Tiger Data: hypertable + continuous aggregate shown in the demo (P1)
-- [ ] Vultr: deployed app URL on the submission (P1)
-- [ ] DEV post published (P3)
-- [ ] README with setup, architecture diagram, demo video (P3)
-- [ ] Devpost/MLH project page and sponsor challenge opt-ins (P3)
+- [ ] ElevenLabs: voice agent used for real calls, mention conversational AI + server tools (Jamil)
+- [ ] Gemini API: function calling + structured extraction (Alex)
+- [ ] Tiger Data: hypertable + continuous aggregate shown in the demo (Jamil)
+- [ ] Vultr: deployed app URL on the submission (Jamil)
+- [ ] DEV post published (Evan)
+- [ ] README with setup, architecture diagram, demo video (Evan)
+- [ ] Devpost/MLH project page and sponsor challenge opt-ins (Evan)

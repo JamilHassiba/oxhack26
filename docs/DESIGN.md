@@ -131,16 +131,16 @@ One Vultr VM, `docker compose`: `backend`, `frontend` (static build served by Ca
 
 Split by ownership (details per person in [PLAN.md](PLAN.md)):
 
-- **Person 1: Voice & infra.** ElevenLabs + Twilio, call lifecycle and webhooks, Vultr deploy, Tiger Data schema/migrations.
-- **Person 2: Orchestrator & tools.** Gemini loop, tool layer (phone wrapper, email, calendar, payments), chat/agents/tasks API.
-- **Person 3: Frontend.** Everything in React + TS, SSE live view, analytics page, then demo polish and the DEV post.
+- **Jamil: Voice & infra.** ElevenLabs + Twilio, call lifecycle and webhooks, Vultr deploy, Tiger Data schema/migrations.
+- **Alex: Orchestrator & tools.** Gemini loop, tool layer (phone wrapper, email, calendar, payments), chat/agents/tasks API.
+- **Evan: Frontend.** Everything in React + TS, SSE live view, analytics page, then demo polish and the DEV post.
 
 The shared contract is the OpenAPI schema plus the `call_events` kinds in section 4. Agree both in the first hour so the three can work in parallel.
 
 **Phase 0: Spikes and skeleton (hours 0–3)**
-- P1: ElevenLabs agent + Twilio number; place one outbound call from a script to a teammate's phone; inspect what the API gives during/after the call (transcript timing). Tiger Cloud DB and schema + hypertable migrations.
-- P2: FastAPI skeleton (shared with P1 for config/db), Gemini function-calling hello world with one fake tool.
-- P3: Vite+TS app, routing, Tailwind, API client shell against mocked responses.
+- Jamil: ElevenLabs agent + Twilio number; place one outbound call from a script to a teammate's phone; inspect what the API gives during/after the call (transcript timing). Tiger Cloud DB and schema + hypertable migrations.
+- Alex: FastAPI skeleton (shared with Jamil for config/db), Gemini function-calling hello world with one fake tool.
+- Evan: Vite+TS app, routing, Tailwind, API client shell against mocked responses.
 - Together (end of phase): docker compose and Vultr VM + domain with hello-world deployed.
 
 **Phase 1: Vertical slice (hours 3–10)**
@@ -157,7 +157,7 @@ Demo script and rehearsal (3×), recorded fallback video, README, DEV post, spon
 
 **Cut list if behind (in order):** analytics page → Google Calendar → email → transcript search → multi-agent creation UI (ship with 1–2 preset agents).
 
-With three people there is no spare capacity: the first cut is the analytics page (Tiger Data continuous aggregate stays as a backend-only query if the UI is cut), and P1 starts helping P2 as soon as the voice path is stable.
+With three people there is no spare capacity: the first cut is the analytics page (Tiger Data continuous aggregate stays as a backend-only query if the UI is cut), and Jamil starts helping Alex as soon as the voice path is stable.
 
 ## 10. Demo script (2 minutes)
 
