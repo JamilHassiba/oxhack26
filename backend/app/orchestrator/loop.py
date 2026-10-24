@@ -78,7 +78,8 @@ async def run_tool_loop(
             parts.append(
                 types.Part(function_response=types.FunctionResponse(id=call.id, name=call.name, response=result))
             )
-            if tool is not None and tool.ends_turn:
+            # A failed call (e.g. unknown contact) doesn't pause: Gemini sees the error and can retry.
+            if tool is not None and tool.ends_turn and "error" not in result:
                 paused_on = tool.name
         history.append(types.Content(role="user", parts=parts))
 

@@ -12,6 +12,12 @@ def build_system_prompt(
     persona_line = f"\n{persona.strip()}\n" if persona.strip() else ""
     if tool_names:
         tools_line = f"Your tools for this task: {', '.join(tool_names)}. Do not call any other function."
+        if "place_call" in tool_names:
+            tools_line += (
+                "\n- To phone a business: call lookup_contact first, then place_call with its contact_id."
+                " Put the details (party size, date and time, budget) in constraints and acceptable alternatives"
+                " (e.g. other times) in fallbacks. The call then happens in the background, so stop after place_call."
+            )
     else:
         # Without this, Gemini sometimes tries to call a tool it doesn't have and returns nothing.
         tools_line = "You have no tools for this task. Do not call any function; answer in plain text only."
