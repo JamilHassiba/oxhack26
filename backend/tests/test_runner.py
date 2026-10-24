@@ -129,3 +129,29 @@ def test_earlier_tasks_come_before_the_new_message(monkeypatch, finished):
 def test_long_summaries_are_cut(monkeypatch):
     contents = runner.history_contents([{"goal": "g", "status": "done", "summary": "x" * 5000}])
     assert len(contents[1].parts[0].text) == runner.MAX_SUMMARY_CHARS
+
+
+def test_no_phone_permission_gets_blunt_rule():
+    from app.orchestrator.prompts import build_system_prompt
+
+    kwargs = dict(agent_name="Maya", persona="", user_name="Alex", tool_names=["create_calendar_event"])
+    assert "phone permission is off" in build_system_prompt(**kwargs, phone_allowed=False)
+    # After a call (on_call_finished) the default keeps it out, so booked calls still go in the calendar.
+    assert "phone permission is off" not in build_system_prompt(**kwargs)
+
+
+def test_run_task_passes_phone_permission(monkeypatch, finished):
+    seen = []
+    real = runner.build_system_prompt
+
+    def spy(**kwargs):
+        seen.append(kwargs["phone_allowed"])
+        return real(**kwargs)
+
+    monkeypatch.setattr(runner, "build_system_prompt", spy)
+    use_client(monkeypatch, FakeClient(model_says(types.Part(text="Turn on the phone permission."))))
+    monkeypatch.setitem(TASK, "tools", ["calendar"])
+
+    asyncio.run(runner.run_task("task-1"))
+
+    assert seen == [False]

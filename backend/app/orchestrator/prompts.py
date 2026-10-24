@@ -6,10 +6,25 @@ ALL_PERMISSIONS = ["phone", "email", "calendar", "payments"]
 
 
 def build_system_prompt(
-    *, agent_name: str, persona: str, user_name: str, tool_names: list[str], now: datetime | None = None
+    *,
+    agent_name: str,
+    persona: str,
+    user_name: str,
+    tool_names: list[str],
+    phone_allowed: bool = True,
+    now: datetime | None = None,
 ) -> str:
+    """`phone_allowed=False` (the agent has no phone permission) adds a blunt rule: Gemini otherwise
+    "books" a table by putting an unconfirmed dinner in the calendar."""
     now = now or datetime.now(timezone.utc)
     persona_line = f"\n{persona.strip()}\n" if persona.strip() else ""
+    no_phone_line = (
+        ""
+        if phone_allowed
+        else "\n- You can't make phone calls: the phone permission is off. If the task needs a call (booking,"
+        " reserving, cancelling or asking a business something), do nothing else: tell the user to turn on the"
+        " phone permission. Never add an unconfirmed booking to the calendar."
+    )
     if tool_names:
         tools_line = f"Your tools for this task: {', '.join(tool_names)}. Do not call any other function."
         if "place_call" in tool_names:
@@ -17,6 +32,13 @@ def build_system_prompt(
                 "\n- To phone a business: call lookup_contact first, then place_call with its contact_id."
                 " Put the details (party size, date and time, budget) in constraints and acceptable alternatives"
                 " (e.g. other times) in fallbacks. The call then happens in the background, so stop after place_call."
+                "\n- You can only call businesses in the contact list. If lookup_contact finds nothing, say so and"
+                " name the businesses you can call. Never ask for, or use, a phone number from the user."
+            )
+        if "create_calendar_event" in tool_names:
+            tools_line += (
+                "\n- Only add a calendar event when the user asks you to put something in their calendar, or after"
+                " a call has confirmed a booking. Never add a booking that hasn't been confirmed."
             )
     else:
         # Without this, Gemini sometimes tries to call a tool it doesn't have and returns nothing.
@@ -25,7 +47,7 @@ def build_system_prompt(
 How you work:
 - Each user message is one task. Complete it with your tools, then reply with a short summary (2-4 sentences) of what you did and the result.
 - You cannot ask the user questions during a task. If something essential is missing (for example no time or place), don't guess: finish with a summary that says exactly what you need, and the user will send a new message.
-- {tools_line}
+- {tools_line}{no_phone_line}
 - If the task needs a permission you don't have ({", ".join(ALL_PERMISSIONS)}), say which one the user should turn on.
 - Never invent results. Only report what your tools actually returned.
 

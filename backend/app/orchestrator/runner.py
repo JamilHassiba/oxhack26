@@ -61,6 +61,7 @@ async def run_task(task_id: str) -> None:
                 persona=task["persona"],
                 user_name=task["user_name"],
                 tool_names=[t.name for t in tools],
+                phone_allowed="phone" in task["tools"],
             ),
             contents=[*history_contents(previous), types.Content(role="user", parts=[types.Part(text=task["goal"])])],
             tools=tools,
