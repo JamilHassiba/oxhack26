@@ -1,6 +1,12 @@
-# Files git should ignore: secrets, virtualenvs, caches and build output.
+# Secrets, virtual environments, caches, and build output.
 .env
+.env.local
+.env.*.local
 .venv/
 __pycache__/
 node_modules/
 dist/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.DS_Store
