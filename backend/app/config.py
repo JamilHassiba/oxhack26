@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     )
 
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3-flash-preview"
+    gemini_model: str = "gemini-3.1-flash-lite"
     database_url: str = ""
     cors_origins: list[str] = ["http://localhost:5173"]
 
