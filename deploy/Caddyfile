@@ -1,1 +1,19 @@
-# Caddy on the Vultr VM: HTTPS, serves the frontend build, proxies /api to uvicorn. Owner: Jamil.
+# Environment variables: SITE_ADDRESS (domain or :80 for initial HTTP smoke test),
+# FRONTEND_ROOT (normally /opt/concierge/current/frontend/dist).
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	handle_path /api/* {
+		reverse_proxy 127.0.0.1:8000 {
+			flush_interval -1
+		}
+	}
+	handle {
+		root * {$FRONTEND_ROOT:/opt/concierge/current/frontend/dist}
+		try_files {path} /index.html
+		file_server
+		header Cache-Control "no-cache"
+	}
+	header X-Content-Type-Options nosniff
+	header Referrer-Policy strict-origin-when-cross-origin
+	log
+}

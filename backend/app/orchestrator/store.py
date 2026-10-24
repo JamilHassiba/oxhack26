@@ -28,7 +28,7 @@ async def create_task(agent_id: str, message: str) -> str:
 
     async with db.get_pool().connection() as conn, conn.transaction():
         # Lock the agent row so two quick messages can't both start a task.
-        agent = await (await conn.execute("SELECT id FROM agents WHERE id = %s FOR UPDATE", (agent_id,))).fetchone()
+        agent = await (await conn.execute("SELECT id FROM agents WHERE id = %s AND archived_at IS NULL FOR UPDATE", (agent_id,))).fetchone()
         if agent is None:
             raise AgentNotFound(agent_id)
         busy = await (

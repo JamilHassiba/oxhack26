@@ -22,9 +22,10 @@ Open the local URL printed by Vite. Demo mode is enabled by default and needs no
 3. Watch the simulated call and transcript. A £20 test deposit approval appears after about six seconds.
 4. Approve to complete the booking, or decline to stop it without a reservation.
 5. Visit **Calendar**, export the `.ics` file, then view **Analytics**.
-6. Send `no answer` to see a failed task and retry by sending a new message.
+6. Select a **Demo scenario** to rehearse no answer, fully booked, a declined deposit, or the agreed alternative time.
+7. Open **History** to search requests and transcripts. Use **Manage** on an agent to edit, duplicate, or delete it; active tasks must be resolved first.
 
-The fixture deliberately demonstrates one dinner booking at The Ivy Oxford tomorrow at 18:00, regardless of the request text. Agents without phone tools complete a simple simulated organisation task. Agents without payments cannot confirm the restaurant's deposit. Calendar and email actions respect their tool toggles. Clear this site's browser storage to reset the demo.
+The fixtures demonstrate bookings at The Ivy Oxford tomorrow at 18:00, with an alternative-time scenario at 19:00; the selected scenario determines the outcome, rather than interpreting the request text. Agents without phone tools complete a simple simulated organisation task. Agents without payments cannot confirm the restaurant's deposit. Calendar and email actions respect their tool toggles. Clear this site's browser storage to reset the demo.
 
 ### Checks
 
@@ -41,7 +42,7 @@ Browser tests cover desktop and mobile: agent selection, saved permissions, text
 
 Set `VITE_DEMO_MODE=false` in `frontend/.env.local`, then restart Vite. `/api` is proxied to `http://localhost:8000` during development. Alternatively set `VITE_API_BASE_URL` to your backend URL (it must allow the frontend origin with CORS). Production settings are baked into the build; see [frontend/README.md](frontend/README.md).
 
-The backend has not landed yet. The typed adapter follows the sketch in [docs/DESIGN.md](docs/DESIGN.md), with explicit provisional response contracts documented in [frontend/README.md](frontend/README.md). Run `npm run api:generate` once FastAPI exposes `/openapi.json`, then align the adapter with Alex's authoritative schema. The current types are handwritten, not generated. Live mode never silently falls back to simulated results.
+The shared backend now registers the agents, tasks and calendar API; the remaining chat, voice, payment and analytics routes are still being integrated. See [local development](docs/LOCAL_DEVELOPMENT.md) to continue without Vultr. The typed adapter follows the contract in [docs/DESIGN.md](docs/DESIGN.md), with explicit provisional response contracts documented in [frontend/README.md](frontend/README.md). Run `npm run api:generate` once FastAPI exposes `/openapi.json`, then check it against the agreed frontend contract. The current handwritten types are the agreed API contract in PLAN.md. Live task history uses the agreed GET /agents/{id}/tasks endpoint and works across browsers. Agent profile updates and deletion are additional adapter contracts documented in frontend/README.md. Live mode never silently falls back to simulated results.
 
 ```mermaid
 flowchart LR
@@ -54,4 +55,4 @@ flowchart LR
 
 [System design](docs/DESIGN.md) · [Team plan](docs/PLAN.md)
 
-Real service integration, production rehearsal, screenshots/video, and public submission are pending the backend and deployment. No production or sponsor integration is claimed by the local demo.
+The simulated [fallback video](docs/demo/fallback-demo.webm), screenshots and [rehearsal script](docs/demo/RUNBOOK.md) are ready. Real service integration, production rehearsal and public submission remain pending. No production or sponsor integration is claimed by the local demo.
