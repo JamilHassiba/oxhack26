@@ -1,11 +1,13 @@
 """Shared contract between Jamil (voice/infra) and Alex (orchestrator). Change only after telling the team.
 
 Call flow:
-    Alex: place_call tool --await start_call(to_number, brief)--> Jamil: calls row + ElevenLabs call -> conversation_id
+    Alex: place_call tool --await start_call(brief)--> Jamil: calls row + ElevenLabs call -> call_id
     Jamil: post-call webhook stores transcript/outcome on calls --await on_call_finished(call_id)--> Alex: resume Gemini
 
-    Jamil implements  app.services.elevenlabs.start_call(to_number: str, brief: CallBrief) -> str   (async)
-    Alex implements   app.orchestrator.callbacks.on_call_finished(call_id: str) -> None          (async)
+    Jamil implements  app.services.elevenlabs.start_call(brief: CallBrief) -> str   (async, returns call_id)
+    Alex implements   app.orchestrator.callbacks.on_call_finished(call_id: str) -> None   (async)
+
+All IDs are strings (DB columns are Postgres uuid, converted to str when read).
 
 call_events kinds/payloads: owned by Jamil, documented in docs/EVENTS.md.
 """
@@ -19,6 +21,7 @@ class CallBrief:
     """What the voice agent needs for one call. Built by the orchestrator from the user's request."""
 
     task_id: str  # so start_call can create the calls row linked to the task
+    to_number: str  # E.164, e.g. "+447700900123"; must be on CALL_ALLOWLIST unless toggled
     goal: str  # "Book a table for 4 at Dishoom tonight at 18:00"
     user_name: str  # "I'm an AI assistant calling on behalf of <user_name>"
     agent_name: str
