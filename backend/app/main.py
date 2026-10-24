@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
 from app.config import Settings, get_settings
-from app.routers import health
+from app.routers import chat, health
 
 logging.basicConfig(level=logging.INFO)
 
@@ -32,6 +32,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health.router)
+    app.include_router(chat.router)
     return app
 
 
