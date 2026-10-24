@@ -151,3 +151,69 @@ async def save_call_outcome(call_id: str, outcome: dict[str, Any]) -> None:
         await conn.execute(
             "UPDATE calls SET outcome = %s WHERE id = %s AND outcome IS NULL", (Jsonb(outcome), call_id)
         )
+
+
+PAYMENT_COLUMNS = (
+    "id::text AS id, task_id::text AS task_id, amount, currency, merchant, description, status, stripe_pi_id"
+)
+
+
+class PaymentNotFound(Exception):
+    pass
+
+
+class PaymentAlreadyDecided(Exception):
+    def __init__(self, status: str):
+        super().__init__(status)
+        self.status = status
+
+
+async def decide_payment(payment_id: str, approve: bool) -> dict[str, Any]:
+    """pending_approval -> approved / denied, atomically so a double click can't decide twice.
+
+    Approving an already-approved payment is allowed: that retries a charge that failed earlier.
+    Then, if the task was waiting on this decision, it goes back to `calling` (the voice agent carries on).
+    """
+    try:
+        UUID(payment_id)
+    except ValueError:
+        raise PaymentNotFound(payment_id) from None
+    allowed_from = ["pending_approval", "approved"] if approve else ["pending_approval"]
+    async with db.get_pool().connection() as conn, conn.transaction():
+        cur = conn.cursor(row_factory=dict_row)
+        await cur.execute(
+            f"UPDATE payments SET status = %s, updated_at = now() WHERE id = %s AND status = ANY(%s)"
+            f" RETURNING {PAYMENT_COLUMNS}",
+            ("approved" if approve else "denied", payment_id, allowed_from),
+        )
+        payment = await cur.fetchone()
+        if payment is None:
+            existing = await (await conn.execute("SELECT status FROM payments WHERE id = %s", (payment_id,))).fetchone()
+            if existing is None:
+                raise PaymentNotFound(payment_id)
+            raise PaymentAlreadyDecided(existing[0])
+        await conn.execute(
+            "UPDATE tasks SET status = %s, updated_at = now() WHERE id = %s AND status = %s",
+            (TaskStatus.CALLING, payment["task_id"], TaskStatus.AWAITING_APPROVAL),
+        )
+    return payment
+
+
+async def mark_paid(payment_id: str, stripe_pi_id: str) -> dict[str, Any]:
+    async with db.get_pool().connection() as conn:
+        cur = conn.cursor(row_factory=dict_row)
+        await cur.execute(
+            f"UPDATE payments SET status = 'paid', stripe_pi_id = %s, updated_at = now() WHERE id = %s"
+            f" RETURNING {PAYMENT_COLUMNS}",
+            (stripe_pi_id, payment_id),
+        )
+        return await cur.fetchone()
+
+
+async def task_payments(task_id: str) -> list[dict[str, Any]]:
+    async with db.get_pool().connection() as conn:
+        cur = conn.cursor(row_factory=dict_row)
+        await cur.execute(
+            f"SELECT {PAYMENT_COLUMNS} FROM payments WHERE task_id = %s ORDER BY created_at", (task_id,)
+        )
+        return await cur.fetchall()

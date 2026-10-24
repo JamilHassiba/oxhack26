@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.1-flash-lite"
     database_url: str = ""
+    stripe_secret_key: str = ""  # test mode only: sk_test_...
     cors_origins: list[str] = ["http://localhost:5173"]
 
 

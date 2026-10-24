@@ -44,6 +44,7 @@ def world(monkeypatch):
         "finished": [],
         "calendar": [],
         "extract": BOOKED,
+        "payments": [],
     }
 
     async def load_call(call_id):
@@ -51,6 +52,9 @@ def world(monkeypatch):
 
     async def load_task(task_id):
         return w["task"]
+
+    async def task_payments(task_id):
+        return w["payments"]
 
     async def save_call_outcome(call_id, outcome):
         w["saved_outcome"] = outcome
@@ -67,7 +71,7 @@ def world(monkeypatch):
         w["calendar"].append(kwargs)
         return {"id": "event-1", **kwargs}
 
-    for fn in (load_call, load_task, save_call_outcome, finish_task):
+    for fn in (load_call, load_task, save_call_outcome, finish_task, task_payments):
         monkeypatch.setattr(store, fn.__name__, fn)
     monkeypatch.setattr(callbacks, "extract_outcome", extract_outcome)
     monkeypatch.setattr(declared, "create_calendar_event", create_calendar_event)
@@ -165,3 +169,12 @@ def test_calendar_tool_converts_times(monkeypatch, world):
 
     assert world["calendar"][0]["starts_at"] == "2026-10-25T18:00:00+00:00"
     assert world["calendar"][0]["ends_at"] == "2026-10-25T19:30:00+00:00"
+
+
+def test_wrap_up_tells_gemini_the_payment_status(monkeypatch, world):
+    world["payments"] = [{"amount": 2000, "merchant": "The Ivy Oxford", "status": "paid"}]
+    client = gemini(monkeypatch, model_says(types.Part(text="Booked; £20 deposit paid.")))
+
+    asyncio.run(callbacks.on_call_finished("call-1"))
+
+    assert "£20.00 to The Ivy Oxford: paid" in client.requests[0][0].parts[0].text

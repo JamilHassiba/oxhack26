@@ -41,6 +41,7 @@ async def on_call_finished(call_id: str) -> None:
             outcome = await extract_outcome(client, model=model, goal=task["goal"], transcript=call["transcript"])
             await store.save_call_outcome(call_id, outcome)
 
+        payments = await store.task_payments(task["id"])
         tools = [t for t in tools_for(task) if t.name not in PHONE_TOOLS]
         result = await run_tool_loop(
             client,
@@ -51,7 +52,7 @@ async def on_call_finished(call_id: str) -> None:
                 user_name=task["user_name"],
                 tool_names=[t.name for t in tools],
             ),
-            contents=[types.Content(role="user", parts=[types.Part(text=wrap_up_message(task, call, outcome))])],
+            contents=[types.Content(role="user", parts=[types.Part(text=wrap_up_message(task, call, outcome, payments))])],
             tools=tools,
         )
     except Exception:
@@ -63,17 +64,21 @@ async def on_call_finished(call_id: str) -> None:
     await store.finish_task(task["id"], status, result.text.strip() or outcome.get("reason") or "The call has ended.")
 
 
-def wrap_up_message(task: dict[str, Any], call: dict[str, Any], outcome: dict[str, Any]) -> str:
+def wrap_up_message(
+    task: dict[str, Any], call: dict[str, Any], outcome: dict[str, Any], payments: list[dict[str, Any]]
+) -> str:
     who = call["contact_name"] or "the business"
+    paid = [f"£{p['amount'] / 100:.2f} to {p['merchant'] or who}: {p['status']}" for p in payments]
     return f"""Your task: {task["goal"]}
 
 You phoned {who} and the call has ended.
 Result of the call: {json.dumps(outcome)}
+Payments for this task (amount: status): {"; ".join(paid) or "none"}
 Call transcript:
 {transcript_text(call["transcript"])}
 
 Finish the task now:
 - If it was booked: add it to the calendar and email the user a confirmation, if you have those tools. If no end time was given, a meal lasts about 1.5 hours.
-- A deposit is never paid during the call (payment happens separately). If one is needed, say it still has to be paid; never say it has been paid.
+- Deposits: only say one was paid if its status above is "paid". If it is "denied", say the user declined it. If a deposit is needed and there is no paid payment, say it still has to be paid.
 - If it wasn't booked: don't add anything. Explain what happened and what the user can do next (for example another time that was offered).
 Then write the summary for the user."""
