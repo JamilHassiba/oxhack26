@@ -1,5 +1,5 @@
 import { demo } from './demo';
-import type { Agent, AgentInput, Analytics, CalendarEvent, Task } from './types';
+import type { Agent, AgentInput, Analytics, CalendarEvent, Task, Tool } from './types';
 export const DEMO = import.meta.env.VITE_DEMO_MODE !== 'false';
 export const BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -33,6 +33,13 @@ export const api = {
     DEMO
       ? demo.createAgent(input)
       : request('/agents', { method: 'POST', body: JSON.stringify(input) }),
+  setAgentTools: (id: string, tools: Tool[]): Promise<Agent> =>
+    DEMO
+      ? demo.setAgentTools(id, tools)
+      : request(`/agents/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ tools }),
+        }),
   tasks: async (agentId: string): Promise<Task[]> => {
     if (DEMO) return Promise.all((await demo.tasks(agentId)).map((t) => demo.task(t.id)));
     return Promise.all(

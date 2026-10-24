@@ -116,3 +116,30 @@ test('failed sends preserve the draft and can be retried', async ({ page }) => {
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Retry succeeded.')).toBeVisible();
 });
+
+test('enter agent persists selected tools to the API and handles a save error', async ({
+  page,
+}) => {
+  let fail = true;
+  let current = { ...agent, tools: [...agent.tools] };
+  let receivedTools: string[] = [];
+  await page.route('**/api/agents', (route) => route.fulfill({ json: [current] }));
+  await page.route(`**/api/agents/${agent.id}`, (route) => {
+    receivedTools = route.request().postDataJSON().tools;
+    if (fail)
+      return route.fulfill({ status: 503, json: { detail: 'Could not save permissions.' } });
+    current = { ...current, tools: receivedTools };
+    return route.fulfill({ json: current });
+  });
+  await page.goto('/agents');
+  await page.getByRole('checkbox', { name: 'Phone calls', exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Enter agent', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Could not save permissions.');
+  await expect(page).toHaveURL(/\/agents$/);
+  await expect(page.getByRole('checkbox', { name: 'Phone calls', exact: true })).not.toBeChecked();
+  fail = false;
+  await page.getByRole('button', { name: 'Enter agent', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/chat/${agent.id}$`));
+  expect(receivedTools).toEqual(['payments', 'calendar']);
+  await expect(page.getByRole('button', { name: 'Book a table' })).toHaveCount(0);
+});

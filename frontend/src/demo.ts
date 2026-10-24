@@ -88,6 +88,13 @@ export const demo = {
     save();
     return agent;
   },
+  async setAgentTools(id: string, tools: Agent['tools']) {
+    const agent = state().agents.find((a) => a.id === id);
+    if (!agent) throw new Error('Agent not found.');
+    agent.tools = [...tools];
+    save();
+    return structuredClone(agent);
+  },
   async tasks(agentId: string) {
     return structuredClone(state().tasks.filter((t) => t.agent_id === agentId));
   },

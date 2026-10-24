@@ -88,3 +88,18 @@ describe('demo booking lifecycle', () => {
     expect((await restored.task(task.id)).status).toBe('awaiting_approval');
   });
 });
+
+describe('agent permissions', () => {
+  it('persists changed tools and respects them for the next task', async () => {
+    await demo.setAgentTools('maya', ['email']);
+    vi.resetModules();
+    const restored = (await import('./demo')).demo;
+    expect((await restored.agents()).find((a) => a.id === 'maya')?.tools).toEqual(['email']);
+    const { task_id } = await restored.send('maya', 'Help with my request');
+    vi.advanceTimersByTime(2000);
+    const task = await restored.task(task_id);
+    expect(task.call).toBeUndefined();
+    expect(task.payment).toBeUndefined();
+    expect(task.calendar_event).toBeUndefined();
+  });
+});

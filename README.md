@@ -1,6 +1,6 @@
 # Concierge · OxHack 26
 
-An agent workspace for the everyday things you'd rather delegate. Create a personal agent, send it a task, follow its call, approve a deposit, and find confirmed plans in your calendar.
+An agent workspace for the everyday things you'd rather delegate. Choose an agent, grant its tool permissions, send it a task, follow its call, approve a deposit, and find confirmed plans in your calendar.
 
 ## Frontend MVP
 
@@ -17,8 +17,8 @@ Open the local URL printed by Vite. Demo mode is enabled by default and needs no
 
 ### Try the demo
 
-1. Open **Chat** with Maya, or create an agent with all four tools.
-2. Choose **Make dinner plans**, then send the message.
+1. Choose Maya with the arrow buttons, check the tools you want to allow, and select **Enter agent**. Permissions are saved per agent. You can also create a new agent.
+2. Choose **Book a table**, then send the message.
 3. Watch the simulated call and transcript. A £20 test deposit approval appears after about six seconds.
 4. Approve to complete the booking, or decline to stop it without a reservation.
 5. Visit **Calendar**, export the `.ics` file, then view **Analytics**.
@@ -35,7 +35,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Browser tests cover desktop and mobile: creating agents, persisted state, the full booking flow, approval and decline, calendar download, analytics, and failure recovery.
+Browser tests cover desktop and mobile: agent selection, saved permissions, text contrast, the full booking flow, approval and decline, calendar download, analytics, and failure recovery.
 
 ## Connect the backend
 

@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Link, NavLink, Navigate, Route, Routes, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Link,
+  NavLink,
+  Navigate,
+  Route,
+  Routes,
+  useParams,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowDownToLine,
   ArrowRight,
   ArrowUp,
-  AudioLines,
   BarChart3,
   CalendarDays,
   Check,
@@ -20,7 +28,6 @@ import {
   LoaderCircle,
   Mail,
   MessageSquare,
-  MoreHorizontal,
   Phone,
   Plus,
   Radio,
@@ -29,7 +36,7 @@ import {
   X,
 } from 'lucide-react';
 import { api, BASE, DEMO, downloadCalendar } from './api';
-import type { Agent, AgentInput, CallEvent, CalendarEvent, Task, Tool } from './types';
+import type { Agent, AgentInput, CallEvent, CalendarEvent, Payment, Task, Tool } from './types';
 const tools = {
   phone: { label: 'Phone calls', icon: Phone, description: 'Make calls on your behalf' },
   email: { label: 'Email', icon: Mail, description: 'Send confirmation emails' },
@@ -38,6 +45,26 @@ const tools = {
     label: 'Payments',
     icon: CreditCard,
     description: 'Test payments, with your approval',
+  },
+};
+const shortcuts = {
+  call: {
+    label: 'Make a call',
+    icon: Phone,
+    tool: 'phone' as Tool,
+    prompt: 'Book a table for 4 at The Ivy Oxford tomorrow at 6pm. They may ask for a £20 deposit.',
+  },
+  email: {
+    label: 'Send an email',
+    icon: Mail,
+    tool: 'email' as Tool,
+    prompt: 'Draft and send an email. Ask me for the recipient and message before sending.',
+  },
+  calendar: {
+    label: 'Plan my day',
+    icon: CalendarDays,
+    tool: 'calendar' as Tool,
+    prompt: 'Help me organise my schedule for tomorrow.',
   },
 };
 const dateTime = (date: string) =>
@@ -106,6 +133,25 @@ function useTasks(agentId: string) {
     refetchIntervalInBackground: true,
   });
 }
+function useWorkspaceTasks() {
+  const agents = useAgents();
+  const queries = useQueries({
+    queries: (agents.data || []).map((agent) => ({
+      queryKey: ['tasks', agent.id],
+      queryFn: () => api.tasks(agent.id),
+      refetchInterval: 1200,
+    })),
+  });
+  return {
+    tasks: queries.flatMap((q) => q.data || []),
+    isPending: agents.isPending || queries.some((q) => q.isPending),
+    error: agents.error || queries.find((q) => q.error)?.error,
+    retry: () => {
+      agents.refetch();
+      queries.forEach((q) => q.refetch());
+    },
+  };
+}
 export default function App() {
   const { data: agents = [] } = useAgents();
   const [help, setHelp] = useState(false);
@@ -129,25 +175,16 @@ export default function App() {
           <NavLink to="/calendar">
             <CalendarDays size={19} /> Calendar
           </NavLink>
-          <NavLink to="/analytics">
+          <NavLink to="/payments">
+            <CreditCard size={19} /> Payments
+          </NavLink>
+          <NavLink to="/analytics" className="secondary-nav">
             <BarChart3 size={19} /> Analytics
           </NavLink>
         </nav>
-        <div className="sidebar-note">
-          <span className="note-sparkle">✳</span>
-          <h4>
-            A little less admin.
-            <br />A little more life.
-          </h4>
-          <p>
-            Your agents handle the details.
-            <br />
-            You get your time back.
-          </p>
-        </div>
         <div className="sidebar-bottom">
           <button className="help-button" onClick={() => setHelp(true)}>
-            <CircleHelp size={18} /> A little help <ExternalLink size={13} />
+            <CircleHelp size={18} /> Help <ExternalLink size={13} />
           </button>
           <div className="profile">
             <span className="user-avatar">Y</span>
@@ -161,13 +198,15 @@ export default function App() {
       </aside>
       <div className="main-shell">
         <header className="topbar">
-          <span>
-            Personal workspace <span className="topbar-divider">/</span>{' '}
-            <strong>Your everyday, handled</strong>
-          </span>
-          <span className="mode-badge">
-            <span /> {DEMO ? 'Demo workspace' : 'Connected to backend'}
-          </span>
+          <span>Personal workspace</span>
+          <div className="workspace-options">
+            <Link className="mobile-activity" to="/analytics" aria-label="Analytics">
+              <BarChart3 size={17} />
+            </Link>
+            <span className="mode-badge">
+              <span /> {DEMO ? 'Demo · simulated' : 'Connected to backend'}
+            </span>
+          </div>
         </header>
         <main>
           <Routes>
@@ -176,16 +215,11 @@ export default function App() {
             <Route path="/chat" element={<ChatRedirect />} />
             <Route path="/chat/:agentId" element={<ChatPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="*" element={<Navigate to="/agents" replace />} />
           </Routes>
         </main>
-        <footer>
-          <span>Made for the things you’d rather not do.</span>
-          <span>
-            <ShieldCheck size={13} /> You’re always in control
-          </span>
-        </footer>
       </div>
       {help && (
         <Modal title="Meet your concierge" onClose={() => setHelp(false)}>
@@ -207,12 +241,10 @@ export default function App() {
   );
 }
 function PageHeading({
-  eyebrow,
   title,
   description,
   action,
 }: {
-  eyebrow: string;
   title: string;
   description: string;
   action?: ReactNode;
@@ -220,7 +252,6 @@ function PageHeading({
   return (
     <div className="page-heading">
       <div>
-        <span className="eyebrow">{eyebrow}</span>
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
@@ -230,128 +261,158 @@ function PageHeading({
 }
 function AgentsPage() {
   const query = useAgents();
+  const client = useQueryClient();
+  const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('concierge-selected-agent-v1');
+    } catch {
+      return null;
+    }
+  });
+  function selectAgent(id: string) {
+    setSelectedId(id);
+    try {
+      localStorage.setItem('concierge-selected-agent-v1', id);
+    } catch {
+      /* Selection still works without storage. */
+    }
+  }
+  const [drafts, setDrafts] = useState<Record<string, Tool[]>>({});
+  const agents = query.data || [];
+  const index = Math.max(
+    0,
+    agents.findIndex((agent) => agent.id === selectedId),
+  );
+  const agent = agents[index];
+  const enabled = agent ? drafts[agent.id] || agent.tools : [];
+  const enter = useMutation({
+    mutationFn: async ({ agent, tools: selectedTools }: { agent: Agent; tools: Tool[] }) => {
+      const changed =
+        selectedTools.length !== agent.tools.length ||
+        selectedTools.some((tool) => !agent.tools.includes(tool));
+      return changed ? api.setAgentTools(agent.id, selectedTools) : agent;
+    },
+    onSuccess: (updated) => {
+      client.setQueryData<Agent[]>(['agents'], (old) =>
+        old?.map((agent) => (agent.id === updated.id ? updated : agent)),
+      );
+      client.invalidateQueries({ queryKey: ['agents'] });
+      navigate(`/chat/${updated.id}`);
+    },
+  });
+  function switchAgent(direction: number) {
+    selectAgent(agents[(index + direction + agents.length) % agents.length].id);
+    enter.reset();
+  }
   return (
-    <div className="page">
+    <div className="page agent-selection-page">
       <PageHeading
-        eyebrow="A HELPING HAND, WHENEVER YOU NEED ONE"
-        title="Your people. Powered by AI."
-        description="A small team for your everyday. Pick an agent and leave the details to them."
+        title="Choose your agent"
+        description="Set its permissions, then start a chat."
         action={
-          <button className="primary" onClick={() => setCreating(true)}>
-            <Plus size={17} /> Create agent
+          <button className="secondary create-agent-button" onClick={() => setCreating(true)}>
+            <Plus size={17} /> <span>Create agent</span>
           </button>
         }
       />
-      <div className="welcome-banner">
-        <div className="banner-art" aria-hidden="true">
-          <span>✳</span>
-          <i />
-          <b />
-        </div>
-        <div>
-          <span className="eyebrow">BIG PLANS. SMALL TASKS. ALL HANDLED.</span>
-          <h2>Consider it taken care of.</h2>
-          <p>
-            Book the table. Make the call. Clear your afternoon.
-            <br />
-            Your next free moment starts with a conversation.
-          </p>
-          <Link className="text-button" to="/chat">
-            Let’s make some plans <ArrowRight size={16} />
-          </Link>
-        </div>
-        <span className="banner-word" aria-hidden="true">
-          hello
-          <br />
-          <em>free time.</em>
-        </span>
-      </div>
-      <div className="section-heading">
-        <h2>
-          Your agents <span>{query.data?.length || 0}</span>
-        </h2>
-        <span>Good help, just a message away.</span>
-      </div>
       {query.isPending ? (
         <Loading />
       ) : query.isError ? (
         <ErrorNotice error={query.error} retry={() => query.refetch()} />
-      ) : (
-        <div className="agent-grid">
-          {query.data.map((agent) => (
-            <article className="agent-card" key={agent.id}>
-              <div className="agent-top">
-                <Avatar agent={agent} />
-                <span className="available">
-                  <span /> Ready to help
-                </span>
-              </div>
+      ) : agent ? (
+        <section className="agent-picker" aria-label="Agent selection">
+          <button
+            className="agent-arrow previous"
+            aria-label="Previous agent"
+            onClick={() => switchAgent(-1)}
+            disabled={agents.length < 2 || enter.isPending}
+          >
+            <ChevronLeft size={25} />
+          </button>
+          <article className="selected-agent" aria-label={`${agent.name} permissions`}>
+            <div className="selected-agent-identity">
+              <Avatar agent={agent} />
               <h2>{agent.name}</h2>
               <span className="agent-role">
                 {agent.tools.includes('phone') ? 'Everyday concierge' : 'Personal assistant'}
               </span>
-              <p className="agent-description">{agent.persona}</p>
-              <div className="agent-tools">
-                {agent.tools.map((tool) => {
-                  const Icon = tools[tool]?.icon || Sparkles;
+            </div>
+            <fieldset className="agent-permissions" disabled={enter.isPending}>
+              <legend>Allowed tools</legend>
+              <div className="permission-grid">
+                {Object.entries(tools).map(([key, tool]) => {
+                  const Icon = tool.icon;
+                  const checked = enabled.includes(key as Tool);
                   return (
-                    <span key={tool} title={tools[tool]?.label}>
-                      <Icon size={14} />
-                      {tool === 'phone' ? 'Calls' : tool.charAt(0).toUpperCase() + tool.slice(1)}
-                    </span>
+                    <label key={key} className={`permission-row ${checked ? 'selected' : ''}`}>
+                      <Icon size={20} />
+                      <span>{tool.label}</span>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) =>
+                          setDrafts((old) => ({
+                            ...old,
+                            [agent.id]: event.target.checked
+                              ? [...enabled, key as Tool]
+                              : enabled.filter((t) => t !== key),
+                          }))
+                        }
+                      />
+                    </label>
                   );
                 })}
               </div>
-              <Link className="agent-chat" to={`/chat/${agent.id}`}>
-                Chat with {agent.name} <ArrowRight size={17} />
-              </Link>
-            </article>
-          ))}
-          <button className="create-card" onClick={() => setCreating(true)}>
-            <span>
-              <Plus size={24} />
-            </span>
-            <h3>A new kind of helping hand</h3>
-            <p>
-              Give your next agent a name,
-              <br />a personality, and a few superpowers.
+            </fieldset>
+            <p className="permissions-note">
+              <ShieldCheck size={14} /> Payments always ask for approval.
             </p>
-            <strong>
-              Create an agent <ArrowRight size={15} />
-            </strong>
+            <button
+              className="primary enter-agent"
+              disabled={enter.isPending}
+              onClick={() => enter.mutate({ agent, tools: enabled })}
+            >
+              {enter.isPending ? (
+                <>
+                  <LoaderCircle className="spin" size={18} /> Saving permissions…
+                </>
+              ) : (
+                <>
+                  Enter agent <ArrowRight size={18} />
+                </>
+              )}
+            </button>
+            {enter.isError && <ErrorNotice error={enter.error} />}
+            <details className="agent-details">
+              <summary>Agent instructions</summary>
+              <p>{agent.persona}</p>
+            </details>
+          </article>
+          <button
+            className="agent-arrow next"
+            aria-label="Next agent"
+            onClick={() => switchAgent(1)}
+            disabled={agents.length < 2 || enter.isPending}
+          >
+            <ChevronRight size={25} />
           </button>
-        </div>
+          <p className="agent-position" aria-live="polite">
+            Agent {index + 1} of {agents.length}
+          </p>
+        </section>
+      ) : (
+        <Empty icon={<Sparkles />} title="Create your first agent">
+          Choose the tools it can use, then start a chat.
+        </Empty>
       )}
-      <div className="trust-row">
-        <div>
-          <ShieldCheck size={20} />
-          <span>
-            <strong>You call the shots</strong>
-            <small>Every payment needs your approval.</small>
-          </span>
-        </div>
-        <div>
-          <AudioLines size={20} />
-          <span>
-            <strong>No more hold music</strong>
-            <small>Your agent makes the call for you.</small>
-          </span>
-        </div>
-        <div>
-          <CalendarDays size={20} />
-          <span>
-            <strong>Plans, all in one place</strong>
-            <small>From conversation to your calendar.</small>
-          </span>
-        </div>
-      </div>
-      {DEMO && (
-        <p className="demo-note">
-          Demo mode · All activity is simulated and saved in this browser.
-        </p>
+      {creating && (
+        <AgentModal
+          onClose={() => setCreating(false)}
+          onCreated={(agent) => selectAgent(agent.id)}
+        />
       )}
-      {creating && <AgentModal onClose={() => setCreating(false)} />}
     </div>
   );
 }
@@ -389,13 +450,20 @@ function Modal({
     </dialog>
   );
 }
-function AgentModal({ onClose }: { onClose: () => void }) {
+function AgentModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated?: (agent: Agent) => void;
+}) {
   const client = useQueryClient();
   const [enabled, setEnabled] = useState<Tool[]>(['phone', 'email', 'calendar', 'payments']);
   const mutation = useMutation({
     mutationFn: api.createAgent,
-    onSuccess: () => {
+    onSuccess: (agent) => {
       client.invalidateQueries({ queryKey: ['agents'] });
+      onCreated?.(agent);
       onClose();
     },
   });
@@ -411,8 +479,7 @@ function AgentModal({ onClose }: { onClose: () => void }) {
     if (input.name && input.persona) mutation.mutate(input);
   }
   return (
-    <Modal title="Meet your new agent" onClose={onClose}>
-      <p className="modal-copy">A name, a little personality, and the tools to get things done.</p>
+    <Modal title="Create an agent" onClose={onClose}>
       <form onSubmit={submit}>
         <label>
           Agent name
@@ -437,7 +504,7 @@ function AgentModal({ onClose }: { onClose: () => void }) {
           </select>
         </label>
         <fieldset>
-          <legend>Give your agent a few superpowers</legend>
+          <legend>Tools</legend>
           <div className="tool-options">
             {Object.entries(tools).map(([key, tool]) => {
               const Icon = tool.icon;
@@ -468,7 +535,7 @@ function AgentModal({ onClose }: { onClose: () => void }) {
           </div>
         </fieldset>
         {mutation.isError && <ErrorNotice error={mutation.error} />}
-        <button className="primary full" disabled={mutation.isPending || !enabled.length}>
+        <button className="primary full" disabled={mutation.isPending}>
           {mutation.isPending ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />}{' '}
           Create agent
         </button>
@@ -480,8 +547,15 @@ function ChatRedirect() {
   const q = useAgents();
   if (q.isPending) return <Loading />;
   if (q.isError) return <ErrorNotice error={q.error} retry={() => q.refetch()} />;
-  return q.data?.length ? (
-    <Navigate to={`/chat/${q.data[0].id}`} replace />
+  let remembered: string | null = null;
+  try {
+    remembered = localStorage.getItem('concierge-selected-agent-v1');
+  } catch {
+    /* Default to the first agent. */
+  }
+  const selected = q.data?.find((agent) => agent.id === remembered) || q.data?.[0];
+  return selected ? (
+    <Navigate to={`/chat/${selected.id}`} replace />
   ) : (
     <div className="page">
       <Empty icon={<MessageSquare />} title="Your first conversation starts here">
@@ -495,11 +569,22 @@ function ChatRedirect() {
 }
 function ChatPage() {
   const { agentId = '' } = useParams();
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const action = params.get('action');
   const agents = useAgents();
   const agent = agents.data?.find((a) => a.id === agentId);
   const tasks = useTasks(agentId);
   const client = useQueryClient();
   const [message, setMessage] = useState('');
+  const composer = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const shortcut = shortcuts[action as keyof typeof shortcuts];
+    if (shortcut && agent?.tools.includes(shortcut.tool)) {
+      setMessage(shortcut.prompt);
+      composer.current?.focus();
+    } else setMessage('');
+  }, [agentId, action, agent?.id]);
   const bottom = useRef<HTMLDivElement>(null);
   const send = useMutation({
     mutationFn: (text: string) => api.send(agentId, text),
@@ -543,14 +628,14 @@ function ChatPage() {
                 <span /> Ready to help
               </span>
             </h2>
-            <p>Your everyday concierge</p>
+            <p>{agent.tools.map((tool) => tools[tool]?.label || tool).join(' · ')}</p>
           </div>
         </div>
         <select
           aria-label="Choose agent"
           value={agentId}
           onChange={(e) => {
-            window.location.href = `/chat/${e.target.value}`;
+            navigate(`/chat/${e.target.value}`);
           }}
         >
           {agents.data?.map((a) => (
@@ -565,37 +650,28 @@ function ChatPage() {
           <div className="conversation-scroll">
             {!list.length && !tasks.isPending && (
               <div className="chat-welcome">
-                <span className="eyebrow">LET’S TAKE SOMETHING OFF YOUR PLATE</span>
-                <h1>What can I handle for you?</h1>
-                <p>I’m {agent.name}. Tell me what you need, and I’ll take care of the details.</p>
+                <h1>What can I help with?</h1>
                 <div className="suggestions">
-                  <button
-                    onClick={() =>
-                      setMessage(
-                        'Book a table for 4 at The Ivy Oxford tomorrow at 6pm. They may ask for a £20 deposit.',
-                      )
-                    }
-                  >
-                    <Phone size={18} />
-                    <span>
-                      Make dinner plans<small>A table for four, without the phone call.</small>
-                    </span>
-                    <ArrowRight size={16} />
-                  </button>
-                  <button onClick={() => setMessage('Help me organise my schedule for tomorrow.')}>
-                    <CalendarDays size={18} />
-                    <span>
-                      Get a little organised<small>Make room for what matters.</small>
-                    </span>
-                    <ArrowRight size={16} />
-                  </button>
+                  {Object.entries(shortcuts)
+                    .filter(([, shortcut]) => agent.tools.includes(shortcut.tool))
+                    .map(([key, shortcut]) => {
+                      const Icon = shortcut.icon;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => {
+                            setMessage(shortcut.prompt);
+                            composer.current?.focus();
+                          }}
+                        >
+                          <Icon size={18} />
+                          <span>{key === 'call' ? 'Book a table' : shortcut.label}</span>
+                          <ArrowRight size={16} />
+                        </button>
+                      );
+                    })}
                 </div>
-                {DEMO && (
-                  <p className="demo-note">
-                    Try “Make dinner plans” for the guided demo. It simulates a booking at The Ivy
-                    Oxford, regardless of your message.
-                  </p>
-                )}
+                {DEMO && <p className="demo-note">Try “Book a table” for the simulated booking.</p>}
               </div>
             )}
             {tasks.isPending && <Loading />}
@@ -612,13 +688,6 @@ function ChatPage() {
                     <strong>
                       {agent.name} <small>{dateTime(task.created_at)}</small>
                     </strong>
-                    <p>
-                      {task.status === 'planning'
-                        ? 'On it. Let me work out the details.'
-                        : task.call
-                          ? 'I’ll handle the call. You can follow along right here.'
-                          : 'I’m taking care of that for you.'}
-                    </p>
                     <TaskCard task={task} agent={agent} />
                   </div>
                 </div>
@@ -632,6 +701,7 @@ function ChatPage() {
             </label>
             <textarea
               id="message"
+              ref={composer}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => {
@@ -640,7 +710,7 @@ function ChatPage() {
                   submit(e);
                 }
               }}
-              placeholder={`Ask ${agent.name} to take care of something…`}
+              placeholder={`Message ${agent.name}…`}
               rows={2}
               maxLength={4000}
               disabled={active || send.isPending}
@@ -648,7 +718,7 @@ function ChatPage() {
             <div className="composer-bottom">
               <span>
                 <Sparkles size={13} />
-                {active ? 'Your agent is working on this task' : 'The little details, handled.'}
+                {active ? 'Task in progress' : 'Enter to send · Shift + Enter for a new line'}
               </span>
               <button
                 className="send-button"
@@ -658,7 +728,10 @@ function ChatPage() {
                 {send.isPending ? (
                   <LoaderCircle size={18} className="spin" />
                 ) : (
-                  <ArrowUp size={19} />
+                  <>
+                    <span>Send</span>
+                    <ArrowUp size={18} />
+                  </>
                 )}
               </button>
             </div>
@@ -668,37 +741,9 @@ function ChatPage() {
             <ShieldCheck size={12} />
             {DEMO
               ? 'Demo mode. No real calls, emails, or charges.'
-              : 'You approve every payment. Your agent handles the rest.'}
+              : 'Payments always need your approval.'}
           </div>
         </section>
-        <aside className="context-panel">
-          <span className="eyebrow">YOUR HELPING HAND</span>
-          <Avatar agent={agent} />
-          <h2>A little about {agent.name}</h2>
-          <p>{agent.persona}</p>
-          <div className="context-divider" />
-          <h3>Equipped to help</h3>
-          {agent.tools.map((tool) => {
-            const Icon = tools[tool]?.icon || Sparkles;
-            return (
-              <div className="context-tool" key={tool}>
-                <span>
-                  <Icon size={16} />
-                </span>
-                <div>
-                  <strong>{tools[tool]?.label || tool}</strong>
-                  <small>{tools[tool]?.description}</small>
-                </div>
-                <Check size={14} />
-              </div>
-            );
-          })}
-          <div className="approval-note">
-            <ShieldCheck size={20} />
-            <strong>Always on your terms.</strong>
-            <p>Your agent asks before any payment. You stay in control, every step of the way.</p>
-          </div>
-        </aside>
       </div>
     </div>
   );
@@ -761,17 +806,8 @@ function useCallEvents(task: Task) {
   return { events: combined.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts)), reconnecting };
 }
 function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
-  const client = useQueryClient();
   const { events, reconnecting } = useCallEvents(task);
   const [now, setNow] = useState(Date.now());
-  const decision = useMutation({
-    mutationFn: (approve: boolean) => api.decide(task.payment!.id, approve),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ['tasks', task.agent_id] });
-      client.invalidateQueries({ queryKey: ['calendar'] });
-      client.invalidateQueries({ queryKey: ['analytics'] });
-    },
-  });
   const running = !['done', 'failed'].includes(task.status);
   useEffect(() => {
     if (!running) return;
@@ -799,13 +835,11 @@ function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
           {task.call ? <Phone size={17} /> : <Sparkles size={17} />}
         </span>
         <div>
-          <strong>
-            {task.call ? 'Booking a little free time' : 'Taking care of your request'}
-          </strong>
+          <strong>{task.call ? 'Phone call' : 'Task'}</strong>
           <small>
             {task.call
               ? `${DEMO ? 'Simulated call' : 'Phone call'} · ${String(Math.floor(duration / 60)).padStart(2, '0')}:${String(duration % 60).padStart(2, '0')}`
-              : 'Your agent is on it'}
+              : agent.name}
           </small>
         </div>
         <span className={`status-chip ${task.status}`}>
@@ -814,8 +848,32 @@ function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
           {labels[task.status]}
         </span>
       </div>
+      {task.summary && (
+        <div className={`summary ${task.status === 'failed' ? 'summary-error' : ''}`}>
+          <span>
+            {task.status === 'failed' ? <CircleHelp size={18} /> : <CheckCheck size={18} />}
+          </span>
+          <div>
+            <strong>
+              {task.status === 'failed'
+                ? 'Let’s try another way'
+                : task.payment?.status === 'denied'
+                  ? 'Your decision, respected.'
+                  : 'All taken care of.'}
+            </strong>
+            <p>{task.summary}</p>
+            {task.status === 'failed' && <small>Send a new message below to try again.</small>}
+          </div>
+        </div>
+      )}
+      {task.payment && <PaymentCard payment={task.payment} agentId={task.agent_id} />}
       {task.call && (
-        <>
+        <details className="call-details" open={running}>
+          <summary>
+            <Radio size={15} />
+            <strong>{running ? 'Live transcript' : 'Call transcript'}</strong>
+            {DEMO && <span>Simulated</span>}
+          </summary>
           <div className="event-timeline">
             {events
               .filter((e) => e.kind !== 'transcript_line')
@@ -831,11 +889,6 @@ function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
               ))}
           </div>
           <div className="transcript">
-            <div className="transcript-label">
-              <Radio size={13} />
-              {running ? 'LIVE TRANSCRIPT' : 'CALL TRANSCRIPT'}
-              {DEMO && <span>SIMULATED</span>}
-            </div>
             {transcript.length ? (
               transcript.map((line, i) => (
                 <div
@@ -855,73 +908,7 @@ function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
               </p>
             )}
           </div>
-        </>
-      )}
-      {task.payment && (
-        <div className="payment-card">
-          <div className="payment-title">
-            <span className="payment-icon">
-              <CreditCard size={18} />
-            </span>
-            <div>
-              <strong>
-                {task.payment.status === 'pending_approval'
-                  ? 'A quick approval from you'
-                  : task.payment.status === 'denied'
-                    ? 'Payment declined'
-                    : 'Payment approved'}
-              </strong>
-              <small>
-                {task.payment.merchant || 'Booking deposit'} ·{' '}
-                {DEMO ? 'Simulated test payment' : 'Test payment'}
-              </small>
-            </div>
-            <b>{money(task.payment.amount, task.payment.currency)}</b>
-          </div>
-          {task.payment.status === 'pending_approval' && (
-            <>
-              <p>The restaurant needs a deposit to confirm your table. Shall we go ahead?</p>
-              <div className="payment-actions">
-                <button
-                  className="primary"
-                  onClick={() => decision.mutate(true)}
-                  disabled={decision.isPending}
-                >
-                  <Check size={15} /> Approve {money(task.payment.amount, task.payment.currency)}
-                </button>
-                <button
-                  className="secondary"
-                  onClick={() => decision.mutate(false)}
-                  disabled={decision.isPending}
-                >
-                  Decline
-                </button>
-              </div>
-              <small className="payment-disclaimer">
-                <ShieldCheck size={12} /> Test mode only. No real money is charged.
-              </small>
-            </>
-          )}
-          {decision.isError && <ErrorNotice error={decision.error} />}
-        </div>
-      )}
-      {task.summary && (
-        <div className={`summary ${task.status === 'failed' ? 'summary-error' : ''}`}>
-          <span>
-            {task.status === 'failed' ? <CircleHelp size={18} /> : <CheckCheck size={18} />}
-          </span>
-          <div>
-            <strong>
-              {task.status === 'failed'
-                ? 'Let’s try another way'
-                : task.payment?.status === 'denied'
-                  ? 'Your decision, respected.'
-                  : 'All taken care of.'}
-            </strong>
-            <p>{task.summary}</p>
-            {task.status === 'failed' && <small>Send a new message below to try again.</small>}
-          </div>
-        </div>
+        </details>
       )}
       {task.calendar_event && (
         <Link className="calendar-result" to="/calendar">
@@ -932,6 +919,95 @@ function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
           </div>
           <ArrowRight size={16} />
         </Link>
+      )}
+    </div>
+  );
+}
+function PaymentCard({ payment, agentId }: { payment: Payment; agentId: string }) {
+  const client = useQueryClient();
+  const decision = useMutation({
+    mutationFn: (approve: boolean) => api.decide(payment.id, approve),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['tasks', agentId] });
+      client.invalidateQueries({ queryKey: ['calendar'] });
+      client.invalidateQueries({ queryKey: ['analytics'] });
+    },
+  });
+  return (
+    <div className={`payment-card ${payment.status === 'pending_approval' ? 'pending' : ''}`}>
+      <div className="payment-title">
+        <span className="payment-icon">
+          <CreditCard size={21} />
+        </span>
+        <div>
+          <strong>
+            {payment.status === 'pending_approval'
+              ? 'Approve deposit'
+              : payment.status === 'denied'
+                ? 'Payment declined'
+                : 'Payment approved'}
+          </strong>
+          <small>{payment.merchant || 'Booking deposit'}</small>
+        </div>
+        <b>{money(payment.amount, payment.currency)}</b>
+      </div>
+      {payment.status === 'pending_approval' && (
+        <div className="payment-actions">
+          <button
+            className="primary"
+            onClick={() => decision.mutate(true)}
+            disabled={decision.isPending}
+          >
+            <Check size={17} /> Approve {money(payment.amount, payment.currency)}
+          </button>
+          <button
+            className="secondary"
+            onClick={() => decision.mutate(false)}
+            disabled={decision.isPending}
+          >
+            Decline
+          </button>
+        </div>
+      )}
+      <small className="payment-disclaimer">
+        <ShieldCheck size={13} /> Test payment · No real charge
+      </small>
+      {decision.isError && <ErrorNotice error={decision.error} />}
+    </div>
+  );
+}
+function PaymentsPage() {
+  const workspace = useWorkspaceTasks();
+  const payments = workspace.tasks
+    .filter((task) => task.payment)
+    .sort(
+      (a, b) =>
+        Number(b.payment!.status === 'pending_approval') -
+          Number(a.payment!.status === 'pending_approval') ||
+        Date.parse(b.created_at) - Date.parse(a.created_at),
+    );
+  return (
+    <div className="page">
+      <PageHeading title="Payments" description="Review deposits before your agent pays." />
+      {workspace.isPending ? (
+        <Loading />
+      ) : workspace.error ? (
+        <ErrorNotice error={workspace.error} retry={workspace.retry} />
+      ) : payments.length ? (
+        <div className="payments-list">
+          {payments.map((task) => (
+            <article className="payment-entry" key={task.id}>
+              <PaymentCard payment={task.payment!} agentId={task.agent_id} />
+              <Link className="payment-task-link" to={`/chat/${task.agent_id}`}>
+                View conversation <ArrowRight size={16} />
+              </Link>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <Empty icon={<CreditCard size={28} />} title="No payments to review">
+          When an agent requests a deposit, approve or decline it here.
+        </Empty>
       )}
     </div>
   );
@@ -954,9 +1030,8 @@ function CalendarPage() {
   return (
     <div className="page">
       <PageHeading
-        eyebrow="A LITTLE MORE TO LOOK FORWARD TO"
-        title="Good plans, all in one place."
-        description="From a quick conversation to a date in your diary."
+        title="Calendar"
+        description="Your confirmed plans."
         action={
           <button
             className="secondary"
@@ -989,8 +1064,8 @@ function CalendarPage() {
           {sorted.length ? (
             sorted.map((event) => <CalendarRow key={event.id} event={event} />)
           ) : (
-            <Empty icon={<CalendarDays size={28} />} title="Your next plan is a conversation away">
-              Ask an agent to make a booking. Confirmed plans will appear here.
+            <Empty icon={<CalendarDays size={28} />} title="No plans yet">
+              Ask an agent to make a booking.
             </Empty>
           )}
         </div>
@@ -1046,9 +1121,7 @@ function CalendarPage() {
           </div>
         </div>
       )}
-      <p className="demo-note">
-        Export an .ics file to add your plans to Apple Calendar, Google Calendar, or Outlook.
-      </p>
+      <p className="demo-note">Export to Apple Calendar, Google Calendar, or Outlook.</p>
     </div>
   );
 }
@@ -1088,11 +1161,7 @@ function AnalyticsPage() {
   });
   return (
     <div className="page">
-      <PageHeading
-        eyebrow="THE LITTLE THINGS ADD UP"
-        title="Your time, well spent."
-        description="A look at what your agents have been taking off your plate."
-      />
+      <PageHeading title="Activity" description="Calls and outcomes at a glance." />
       {query.isPending ? (
         <Loading />
       ) : query.isError ? (
@@ -1158,7 +1227,6 @@ function AnalyticsPage() {
               <section className="chart-card">
                 <div className="section-heading">
                   <h2>Your team at a glance</h2>
-                  <MoreHorizontal size={18} />
                 </div>
                 {query.data.agents.map((agent) => (
                   <div className="agent-stat" key={agent.name}>
