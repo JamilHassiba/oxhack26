@@ -9,9 +9,9 @@ Files starting with the line `-- migrate: no-transaction` run outside a transact
 
 import sys
 from pathlib import Path
+from typing import LiteralString, cast
 
 import psycopg
-
 from app.config import get_settings
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
@@ -29,26 +29,39 @@ def main() -> int:
             "CREATE TABLE IF NOT EXISTS schema_migrations ("
             " filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"
         )
-        applied = {row[0] for row in conn.execute("SELECT filename FROM schema_migrations")}
+        applied = {
+            row[0] for row in conn.execute("SELECT filename FROM schema_migrations")
+        }
 
-        pending = [p for p in sorted(MIGRATIONS_DIR.glob("*.sql")) if p.name not in applied]
+        pending = [
+            p for p in sorted(MIGRATIONS_DIR.glob("*.sql")) if p.name not in applied
+        ]
         if not pending:
             print("Database is up to date.")
             return 0
 
         for path in pending:
-            sql = path.read_text()
+            # Our own migration files, so trusted SQL: tell psycopg's type hints it's safe.
+            sql = cast(LiteralString, path.read_text())
             print(f"Applying {path.name}...")
             if sql.startswith(NO_TRANSACTION):
                 # One statement at a time: Postgres wraps a multi-statement string in a transaction.
                 for statement in sql.split(";\n"):
-                    if any(line.strip() and not line.strip().startswith("--") for line in statement.splitlines()):
+                    if any(
+                        line.strip() and not line.strip().startswith("--")
+                        for line in statement.splitlines()
+                    ):
                         conn.execute(statement)
-                conn.execute("INSERT INTO schema_migrations (filename) VALUES (%s)", (path.name,))
+                conn.execute(
+                    "INSERT INTO schema_migrations (filename) VALUES (%s)", (path.name,)
+                )
             else:
                 with conn.transaction():
                     conn.execute(sql)
-                    conn.execute("INSERT INTO schema_migrations (filename) VALUES (%s)", (path.name,))
+                    conn.execute(
+                        "INSERT INTO schema_migrations (filename) VALUES (%s)",
+                        (path.name,),
+                    )
         print(f"Applied {len(pending)} migration(s).")
     return 0
 
