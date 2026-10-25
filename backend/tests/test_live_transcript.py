@@ -73,6 +73,22 @@ def test_writes_lines_as_the_conversation_grows_then_stops_when_done(follower):
     ]
 
 
+def test_never_writes_a_line_that_is_still_being_spoken(follower):
+    follower["snapshots"] = [
+        {"status": "in-progress", "transcript": [TURNS[0], turn("agent", "Hi, I'm Ma", 3)]},  # mid-sentence
+        {"status": "in-progress", "transcript": TURNS[:2] + [turn("user", "How can", 7)]},
+        {"status": "done", "transcript": TURNS},
+    ]
+
+    asyncio.run(live_transcript.follow("call-1"))
+
+    assert [line.text for line in follower["written"]] == [
+        "Good evening, The Ivy Oxford.",
+        "Hi, I'm Maya, an AI assistant calling for Alex.",
+        "How can I help?",
+    ]
+
+
 def test_stops_once_the_webhook_has_ended_the_call(follower):
     follower["snapshots"] = [{"status": "in-progress", "transcript": TURNS}]
     follower["ended"] = True

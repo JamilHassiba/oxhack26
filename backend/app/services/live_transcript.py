@@ -108,9 +108,13 @@ async def follow(call_id: str) -> None:
                 if not conversation_id:
                     continue  # start_call sets it right after ElevenLabs accepts the call
                 conversation = await fetch_conversation(client, conversation_id)
-                if not await write_new_lines(call_id, transcript_lines(conversation.get("transcript") or [])):
+                lines = transcript_lines(conversation.get("transcript") or [])
+                finished = conversation.get("status") in FINISHED
+                # The newest turn may still be being spoken, and a line once written is never rewritten (the
+                # webhook skips lines already stored). So write it only once the next turn has started.
+                if not await write_new_lines(call_id, lines if finished else lines[:-1]):
                     return
-                if conversation.get("status") in FINISHED:
+                if finished:
                     return
                 failures = 0
             except Exception:
