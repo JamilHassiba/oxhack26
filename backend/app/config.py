@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     stripe_secret_key: str = ""  # test mode only: sk_test_...
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    # Voice (Jamil). With no API key, start_call falls back to a practice run that dials nobody.
+    elevenlabs_api_key: str = ""
+    elevenlabs_agent_id: str = ""
+    elevenlabs_phone_number_id: str = ""
+    elevenlabs_webhook_secret: str = ""
+    call_allowlist: str = ""  # comma-separated E.164 numbers; empty = any number from the contacts table
+
 
 @lru_cache
 def get_settings() -> Settings:
