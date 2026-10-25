@@ -55,7 +55,7 @@ async def booking_details(task_id: str) -> dict[str, Any]:
         await cur.execute(
             """
             SELECT c.outcome, c.business_name,
-                   (SELECT row_to_json(p) FROM (SELECT amount, currency, status FROM payments
+                   (SELECT row_to_json(p) FROM (SELECT amount, currency, status, merchant FROM payments
                                                 WHERE task_id = c.task_id ORDER BY created_at DESC LIMIT 1) p
                    ) AS payment
             FROM calls c WHERE c.task_id = %s ORDER BY c.started_at DESC LIMIT 1
