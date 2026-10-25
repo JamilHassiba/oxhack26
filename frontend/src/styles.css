@@ -107,8 +107,8 @@ svg {
   height: 34px;
   display: grid;
   place-items: center;
-  background: #eef0fb;
-  color: #2f3a91;
+  background: #ede8fa; /* profile icons: soft violet, set apart from the indigo accent */
+  color: #4e3796;
   border-radius: 50%;
   flex-shrink: 0;
   font-weight: 650;
@@ -220,8 +220,8 @@ svg {
   place-items: center;
   width: 47px;
   height: 47px;
-  background: #eef0fb;
-  color: #2f3a91;
+  background: #ede8fa;
+  color: #4e3796;
   border-radius: 14px;
   font-family: Georgia, serif;
   font-size: 27px;
@@ -234,7 +234,7 @@ svg {
   bottom: -1px;
   right: -1px;
   border-radius: 50%;
-  background: #4351c4;
+  background: #6d4fd1;
   border: 2px solid #fff;
 }
 .avatar.lavender {
@@ -489,7 +489,7 @@ legend {
 }
 /* As wide as the message box, plus room either side for the avatars, which sit outside the bubbles. */
 .conversation-scroll {
-  height: calc(100dvh - 347px);
+  height: calc(100dvh - 289px); /* leaves the message box ~16px above the bottom of the screen */
   min-height: 310px;
   overflow-y: auto;
   margin: 0 -56px;
@@ -1100,7 +1100,7 @@ legend {
     padding: 0 15px 20px;
   }
   .conversation-scroll {
-    height: calc(100dvh - 440px);
+    height: calc(100dvh - 292px);
     min-height: 285px;
     padding-top: 20px;
   }
