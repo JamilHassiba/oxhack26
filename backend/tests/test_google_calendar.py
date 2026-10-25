@@ -42,7 +42,7 @@ def test_event_has_the_booking_details():
         "Details: table for 2",
         "Deposit: £20.00 (paid)",
         "",
-        "Booked by Maya, your AI concierge, on a phone call.",
+        "Booked by Maya on a phone call, with Smart Connect.",
         "Table for 2 confirmed at 19:00 with a £20 deposit.",
     ]
 

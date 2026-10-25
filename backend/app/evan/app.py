@@ -16,7 +16,7 @@ def create_app(settings=None):
         yield
         await close_fallback_pool()
 
-    app = FastAPI(title="Concierge API", lifespan=lifespan)
+    app = FastAPI(title="Smart Connect API", lifespan=lifespan)
     register_routes(app)
 
     @app.get("/health")

@@ -35,11 +35,11 @@ export default function App() {
     <div className="app-shell">
       <div className="main-shell">
         <header className="topbar">
-          <Link to="/" className="brand brand-button" aria-label="concierge. Home">
+          <Link to="/" className="brand brand-button" aria-label="Smart Connect home">
             <span className="brand-mark">
               <Sparkles size={20} />
             </span>
-            concierge<span className="brand-dot">.</span>
+            Smart Connect
           </Link>
           {DEMO && (
             <span className="mode-badge">
@@ -352,37 +352,20 @@ function ChatPage() {
                   submit(e);
                 }
               }}
-              placeholder={`Message ${agent.name}…`}
-              rows={2}
+              placeholder={active ? 'Task in progress…' : `Message ${agent.name}…`}
+              rows={1}
               maxLength={4000}
               disabled={active || send.isPending}
             />
-            <div className="composer-bottom">
-              {/* Only says something when it matters: why the box is locked. */}
-              <span>
-                {active && (
-                  <>
-                    <Sparkles size={13} /> Task in progress
-                  </>
-                )}
-              </span>
-              <button
-                className="send-button"
-                aria-label="Send message"
-                disabled={!message.trim() || active || send.isPending}
-              >
-                {send.isPending ? (
-                  <LoaderCircle size={18} className="spin" />
-                ) : (
-                  <>
-                    <span>Send</span>
-                    <ArrowUp size={18} />
-                  </>
-                )}
-              </button>
-            </div>
-            {send.isError && <ErrorNotice error={send.error} />}
+            <button
+              className="send-button"
+              aria-label="Send message"
+              disabled={!message.trim() || active || send.isPending}
+            >
+              {send.isPending ? <LoaderCircle size={18} className="spin" /> : <ArrowUp size={18} />}
+            </button>
           </form>
+          {send.isError && <ErrorNotice error={send.error} />}
           <div className="composer-note">
             <ShieldCheck size={12} />
             {DEMO

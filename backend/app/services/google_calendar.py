@@ -83,7 +83,7 @@ def event_body(event: dict[str, Any], task: dict[str, Any], details: dict[str, A
     elif outcome:
         lines.append("Deposit: none")
     lines.append("")
-    lines.append(f"Booked by {task['agent_name']}, your AI concierge, on a phone call.")
+    lines.append(f"Booked by {task['agent_name']} on a phone call, with Smart Connect.")
     if outcome.get("reason"):
         lines.append(outcome["reason"])
 

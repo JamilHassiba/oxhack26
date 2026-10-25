@@ -159,7 +159,7 @@ test('active tasks block deletion until the deposit is declined', async ({ page 
   await expect(page.getByRole('button', { name: 'Decline', exact: true })).toBeVisible({
     timeout: 15000,
   });
-  await page.getByRole('link', { name: 'concierge. Home' }).click();
+  await page.getByRole('link', { name: 'Smart Connect home' }).click();
   await page.getByLabel('Manage agent').click();
   await page.getByRole('button', { name: 'Delete agent', exact: true }).click();
   await expect(
@@ -169,7 +169,7 @@ test('active tasks block deletion until the deposit is declined', async ({ page 
   await page.goto('/chat');
   await page.getByRole('button', { name: 'Decline', exact: true }).click();
   await expect(page.getByText('Your decision, respected.')).toBeVisible();
-  await page.getByRole('link', { name: 'concierge. Home' }).click();
+  await page.getByRole('link', { name: 'Smart Connect home' }).click();
   await page.getByLabel('Manage agent').click();
   await page.getByRole('button', { name: 'Delete agent', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Delete agent', exact: true }).click();
