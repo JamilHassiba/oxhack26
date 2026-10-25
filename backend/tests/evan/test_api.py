@@ -51,7 +51,6 @@ def test_agent_crud_validation_and_archive(client, database):
     assert client.delete("/agents/" + agent["id"]).status_code == 204
     assert client.get("/agents").json() == []
     assert client.get("/agents/" + agent["id"]).status_code == 404
-    assert client.get("/tasks/" + task).json()["id"] == task
     assert client.get("/agents/" + agent["id"] + "/tasks").json()[0]["id"] == task
     with database[1]() as conn:
         with pytest.raises(errors.CheckViolation):
@@ -90,16 +89,15 @@ def test_joined_task_shape_and_server_history(client, database):
             "INSERT INTO call_events (ts,call_id,kind,payload) VALUES ('2026-10-24T11:00Z',%s,'answered','{}')",
             (call,),
         )
-    value = client.get("/tasks/" + task).json()
+    [value] = client.get("/agents/" + agent["id"] + "/tasks").json()
     assert value["call"]["id"] == call
     assert value["call"]["transcript"][0]["text"] == "Confirmed"
     assert value["payment"]["amount"] == 2000
     assert "stripe_pi_id" not in value["payment"]
     assert value["events"][0]["call_id"] == call
     assert "calendar_event" not in value
-    assert client.get("/agents/" + agent["id"] + "/tasks").json() == [value]
-    assert client.get("/tasks/" + str(uuid4())).status_code == 404
-    assert client.get("/tasks/not-a-uuid").status_code == 422
+    assert client.get("/agents/" + str(uuid4()) + "/tasks").status_code == 404
+    assert client.get("/agents/not-a-uuid/tasks").status_code == 422
 
 
 def test_empty_history_and_openapi(client):
@@ -127,7 +125,7 @@ def test_chat_integration_respects_active_and_archived_agents(client, monkeypatc
     assert response.status_code == 202
     task_id = response.json()["task_id"]
     assert started == [task_id]
-    assert client.get("/tasks/" + task_id).json()["status"] == "planning"
+    assert client.get(path + "/tasks").json()[0]["status"] == "planning"
     assert client.post(path + "/chat", json={"message": "Again"}).status_code == 409
     assert client.delete(path).status_code == 409
 

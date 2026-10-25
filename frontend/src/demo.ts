@@ -1,6 +1,5 @@
-import type { Agent, AgentInput, Analytics, Task, Tool } from './types';
-import type { HistoryEntry, TaskHistory } from './history-types';
-import { isActive, previousAgent } from './history-types';
+import type { Agent, AgentInput, Task, Tool } from './types';
+import { isActive } from './config';
 import { isDemoScenario, scenarioFor, type DemoScenario } from './features/demo/scenarios';
 const key = 'concierge-demo-v1';
 const presets: Agent[] = [
@@ -18,7 +17,6 @@ const presets: Agent[] = [
 type Run = { scenario: DemoScenario; agent: Agent };
 type State = { agents: Agent[]; tasks: Task[]; runs: Record<string, Run> };
 let memory: State | undefined;
-let persistent = true;
 function state(): State {
   if (memory) return memory;
   try {
@@ -32,23 +30,26 @@ function state(): State {
       });
     }
   } catch {
-    persistent = false;
+    /* No storage: the demo still works in memory. */
   }
   return (memory = { agents: structuredClone(presets), tasks: [], runs: {} });
 }
 function save() {
   try {
     localStorage.setItem(key, JSON.stringify(state()));
-    persistent = true;
   } catch {
-    persistent = false;
+    /* No storage: the demo still works in memory. */
   }
 }
 function run(task: Task): Run {
   return (state().runs[task.id] ||= {
     scenario: scenarioFor(task.goal),
     agent: structuredClone(
-      state().agents.find((a) => a.id === task.agent_id) || previousAgent(task.agent_id),
+      state().agents.find((a) => a.id === task.agent_id) || {
+        id: task.agent_id,
+        name: 'Previous agent',
+        tools: [],
+      },
     ),
   });
 }
@@ -254,19 +255,6 @@ export const demo = {
     save();
     return structuredClone(task);
   },
-  async history(): Promise<TaskHistory> {
-    const items = state().tasks.map((task) => ({
-      task: structuredClone(advance(task)),
-      agent: structuredClone(run(task).agent),
-    }));
-    save();
-    return { items, unavailable: [], scope: 'demo', persistent };
-  },
-  async taskDetail(id: string): Promise<HistoryEntry> {
-    const task = advance(findTask(id));
-    save();
-    return { task: structuredClone(task), agent: structuredClone(run(task).agent) };
-  },
   async decide(id: string, approve: boolean) {
     const task = state().tasks.find((t) => t.payment?.id === id);
     if (!task?.payment || task.payment.status !== 'pending_approval')
@@ -282,44 +270,5 @@ export const demo = {
     );
     complete(task);
     save();
-  },
-  async analytics(): Promise<Analytics> {
-    state().tasks.forEach(advance);
-    save();
-    const calls = state().tasks.filter((t) => t.call);
-    const ended = calls.filter((t) => t.call?.ended_at);
-    const successful = (task: Task) => task.status === 'done' && task.payment?.status !== 'denied';
-    const roster = new Map(state().agents.map((a) => [a.id, a]));
-    for (const task of state().tasks)
-      if (!roster.has(task.agent_id)) roster.set(task.agent_id, run(task).agent);
-    return {
-      total_calls: calls.length,
-      success_rate: ended.length ? (ended.filter(successful).length / ended.length) * 100 : 0,
-      avg_duration_seconds: ended.length
-        ? ended.reduce(
-            (sum, t) =>
-              sum + (Date.parse(t.call!.ended_at!) - Date.parse(t.call!.started_at)) / 1000,
-            0,
-          ) / ended.length
-        : 0,
-      calls_by_day: Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - 6 + i);
-        const date = d.toLocaleDateString('en-CA');
-        return {
-          date,
-          calls: calls.filter((t) => new Date(t.created_at).toLocaleDateString('en-CA') === date)
-            .length,
-        };
-      }),
-      agents: [...roster.values()].map((a) => {
-        const tasks = ended.filter((t) => t.agent_id === a.id);
-        return {
-          name: a.name,
-          calls: calls.filter((t) => t.agent_id === a.id).length,
-          success_rate: tasks.length ? (tasks.filter(successful).length / tasks.length) * 100 : 0,
-        };
-      }),
-    };
   },
 };

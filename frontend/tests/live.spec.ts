@@ -203,20 +203,6 @@ test('permissions save failures do not enter the agent or discard choices', asyn
   await expect(page).toHaveURL(new RegExp(`/chat/${agent.id}$`));
   expect(state.agents[0].tools).toEqual(['payments', 'calendar']);
 });
-test('history loads server tasks on a fresh browser and preserves partial results', async ({
-  page,
-}) => {
-  const state = await backend(page, [finished()]);
-  state.agents.push({ ...agent, id: 'other', name: 'Other' });
-  state.unavailable.add('other');
-  await page.goto('/history');
-  await expect(page.getByRole('link', { name: /A previous dinner booking/ })).toBeVisible();
-  await expect(page.getByRole('alert')).toContainText('Some agents');
-  await page.getByRole('link', { name: /A previous dinner booking/ }).click();
-  await expect(page.getByText('Reservation confirmed by backend.')).toBeVisible();
-  await page.reload();
-  await expect(page.getByText('Reservation confirmed by backend.')).toBeVisible();
-});
 test('profile update failure keeps the form, then saves', async ({ page }) => {
   const state = await backend(page);
   state.failPatch = true;
@@ -232,9 +218,7 @@ test('profile update failure keeps the form, then saves', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Maya edited', exact: true })).toBeVisible();
   expect(state.agents[0].name).toBe('Maya edited');
 });
-test('server deletion conflict is handled and a later delete preserves archived history', async ({
-  page,
-}) => {
+test('server deletion conflict is handled, then the agent is deleted', async ({ page }) => {
   const state = await backend(page, [finished()]);
   state.failDelete = true;
   await page.goto('/');
@@ -245,9 +229,4 @@ test('server deletion conflict is handled and a later delete preserves archived 
   state.failDelete = false;
   await page.getByRole('dialog').getByRole('button', { name: 'Delete agent', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Create your first agent' })).toBeVisible();
-  await page.goto('/history');
-  await page.getByRole('link', { name: /A previous dinner booking/ }).click();
-  await expect(page.getByText('Archived copy saved in this browser.')).toBeVisible();
-  await page.reload();
-  await expect(page.getByText('Reservation confirmed by backend.')).toBeVisible();
 });

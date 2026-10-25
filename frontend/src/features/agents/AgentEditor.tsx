@@ -29,7 +29,6 @@ export function AgentEditor({
         : api.createAgent(input),
     onSuccess: (agent) => {
       client.invalidateQueries({ queryKey: ['agents'] });
-      client.invalidateQueries({ queryKey: ['history'] });
       onCreated?.(agent);
       onClose();
     },

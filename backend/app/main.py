@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import db
 from app.config import Settings, get_settings
 from app.evan import register_routes
-from app.routers import analytics, calls, chat, events, health, payments, voice_tools, webhooks
+from app.routers import calls, chat, events, health, payments, voice_tools, webhooks
 
 logging.basicConfig(level=logging.INFO)
 
@@ -38,7 +38,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(payments.router)
     app.include_router(calls.router)
     app.include_router(events.router)
-    app.include_router(analytics.router)
     app.include_router(voice_tools.router)
     app.include_router(webhooks.router)
     return app

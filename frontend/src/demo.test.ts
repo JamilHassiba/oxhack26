@@ -34,7 +34,6 @@ describe('demo booking lifecycle', () => {
     expect(task.status).toBe('done');
     expect(task.payment?.status).toBe('paid');
     expect(task.call?.outcome?.booked).toBe(true);
-    expect((await demo.analytics()).success_rate).toBe(100);
     await expect(demo.decide(task.payment!.id, true)).rejects.toThrow('already been handled');
   });
   it('declining never creates a reservation and is not counted as success', async () => {
@@ -42,7 +41,6 @@ describe('demo booking lifecycle', () => {
     await demo.decide(task.payment!.id, false);
     expect((await demo.task(task.id)).payment?.status).toBe('denied');
     expect((await demo.task(task.id)).call?.outcome?.booked).toBe(false);
-    expect((await demo.analytics()).success_rate).toBe(0);
   });
   it('does not use disabled tools', async () => {
     const input: AgentInput = {
@@ -105,7 +103,6 @@ describe('rehearsal scenarios and history', () => {
     expect(task.call?.ended_at).toBeTruthy();
     expect(task.call?.transcript).toEqual([]);
     expect(task.payment).toBeUndefined();
-    expect((await demo.analytics()).success_rate).toBe(0);
   });
   it('fully booked produces a transcript and no payment', async () => {
     const { task_id } = await demo.send('maya', 'Book dinner', 'fully_booked');
@@ -150,21 +147,15 @@ describe('rehearsal scenarios and history', () => {
     await demo.decide(task.payment!.id, true);
     await demo.deleteAgent('maya');
     expect((await demo.agents()).map((a) => a.id)).not.toContain('maya');
-    expect((await demo.taskDetail(task_id)).agent.name).toBe('Maya');
-    expect((await demo.history()).items).toHaveLength(1);
-    vi.resetModules();
-    const restored = (await import('./demo')).demo;
-    expect((await restored.taskDetail(task_id)).task.status).toBe('done');
   });
   it('rejects overlapping runs and invalid scenario IDs', async () => {
     await expect(demo.send('maya', 'Book dinner', 'not-a-scenario' as never)).rejects.toThrow(
       'Unknown demo scenario',
     );
-    expect((await demo.history()).items).toEqual([]);
     await demo.send('maya', 'Book dinner');
     await expect(demo.send('maya', 'Another booking')).rejects.toThrow('current task');
   });
-  it('works in memory and reports when browser persistence is unavailable', async () => {
+  it('works in memory when browser storage is unavailable', async () => {
     vi.stubGlobal('localStorage', {
       getItem: () => {
         throw new Error('Unavailable');
@@ -177,6 +168,5 @@ describe('rehearsal scenarios and history', () => {
     const { task_id } = await demo.send('maya', 'Book dinner', 'alternative_time');
     vi.advanceTimersByTime(7000);
     expect((await demo.task(task_id)).status).toBe('done');
-    expect((await demo.history()).persistent).toBe(false);
   });
 });

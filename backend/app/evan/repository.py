@@ -108,14 +108,6 @@ class Repository:
             "UPDATE agents SET archived_at = now() WHERE id = %s", (agent_id,)
         )
 
-    async def task(self, task_id):
-        row = await self.one(TASK_SELECT + " WHERE t.id = %s", (task_id,))
-        if not row:
-            raise HTTPException(404, "Task not found.")
-        if row.get("call") and row["call"].get("transcript") is None:
-            row["call"]["transcript"] = []
-        return Task.model_validate(wire(row))
-
     async def tasks(self, agent_id):
         # Archived agents retain readable history through their stable IDs.
         exists = await self.one("SELECT id FROM agents WHERE id = %s", (agent_id,))

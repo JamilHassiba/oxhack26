@@ -1,5 +1,5 @@
 import { Phone, Mail, CalendarDays, CreditCard } from 'lucide-react';
-import type { Tool } from './types';
+import type { Task, Tool } from './types';
 export const tools = {
   phone: { label: 'Phone calls', icon: Phone, description: 'Make calls on your behalf' },
   email: { label: 'Email', icon: Mail, description: 'Send confirmation emails' },
@@ -53,3 +53,4 @@ export const labels = {
   done: 'Completed',
   failed: 'Needs attention',
 };
+export const isActive = (task: Task) => !['done', 'failed'].includes(task.status);

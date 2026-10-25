@@ -58,23 +58,6 @@ export interface paths {
     patch: operations['update_agent_agents__agent_id__patch'];
     trace?: never;
   };
-  '/tasks/{task_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Task */
-    get: operations['get_task_tasks__task_id__get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/agents/{agent_id}/tasks': {
     parameters: {
       query?: never;
@@ -186,23 +169,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/analytics/summary': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Analytics Summary */
-    get: operations['analytics_summary_analytics_summary_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/webhooks/elevenlabs/tools/request_payment_approval': {
     parameters: {
       query?: never;
@@ -263,31 +229,6 @@ export interface components {
       name?: string | null;
       /** Tools */
       tools?: ('phone' | 'email' | 'calendar' | 'payments')[] | null;
-    };
-    /** AgentStats */
-    AgentStats: {
-      /** Name */
-      name: string;
-      /** Calls */
-      calls: number;
-      /** Success Rate */
-      success_rate: number;
-    };
-    /**
-     * Analytics
-     * @description Matches Analytics in frontend/src/types.ts.
-     */
-    Analytics: {
-      /** Total Calls */
-      total_calls: number;
-      /** Success Rate */
-      success_rate: number;
-      /** Avg Duration Seconds */
-      avg_duration_seconds: number;
-      /** Calls By Day */
-      calls_by_day: components['schemas']['DayCalls'][];
-      /** Agents */
-      agents: components['schemas']['AgentStats'][];
     };
     /** Call */
     Call: {
@@ -359,13 +300,6 @@ export interface components {
     ChatResponse: {
       /** Task Id */
       task_id: string;
-    };
-    /** DayCalls */
-    DayCalls: {
-      /** Date */
-      date: string;
-      /** Calls */
-      calls: number;
     };
     /** EventPayload */
     EventPayload: {
@@ -659,37 +593,6 @@ export interface operations {
       };
     };
   };
-  get_task_tasks__task_id__get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        task_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['Task'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
   agent_tasks_agents__agent_id__tasks_get: {
     parameters: {
       query?: never;
@@ -880,26 +783,6 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  analytics_summary_analytics_summary_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['Analytics'];
         };
       };
     };

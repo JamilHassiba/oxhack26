@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LoaderCircle, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../../api';
-import { isActive } from '../../history-types';
+import { isActive } from '../../config';
 import { Modal, ErrorNotice } from '../../components/ui';
 import type { Agent } from '../../types';
 import { AgentEditor } from './AgentEditor';
@@ -77,7 +77,6 @@ function DeleteAgent({
       client.setQueryData<Agent[]>(['agents'], (old) => old?.filter((a) => a.id !== agent.id));
       client.removeQueries({ queryKey: ['tasks', agent.id] });
       client.invalidateQueries({ queryKey: ['agents'] });
-      client.invalidateQueries({ queryKey: ['history'] });
       onDeleted();
       onClose();
     },
@@ -89,7 +88,7 @@ function DeleteAgent({
         if (!remove.isPending) onClose();
       }}
     >
-      <p className="modal-copy">Previous tasks stay in History. This agent will be removed.</p>
+      <p className="modal-copy">This agent and its chat will be removed.</p>
       {tasks.isError && <ErrorNotice error={tasks.error} retry={() => tasks.refetch()} />}
       {active && (
         <div className="info-box" role="status">

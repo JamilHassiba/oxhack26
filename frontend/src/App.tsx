@@ -8,18 +8,14 @@ import {
   useNavigate,
   useSearchParams,
 } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight,
   ArrowUp,
-  CheckCheck,
   ChevronLeft,
   ChevronRight,
-  Clock3,
-  CreditCard,
   LoaderCircle,
   MessageSquare,
-  Phone,
   Plus,
   ShieldCheck,
   Sparkles,
@@ -27,15 +23,14 @@ import {
 import { api, DEMO } from './api';
 import { tools, shortcuts, dateTime } from './config';
 import { Avatar, ErrorNotice, Loading, Empty, PageHeading } from './components/ui';
-import { TaskCard, PaymentCard } from './components/TaskCard';
-import { useAgents, useTasks, useWorkspaceTasks } from './state';
+import { TaskCard } from './components/TaskCard';
+import { useAgents, useTasks } from './state';
 import { AgentEditor } from './features/agents/AgentEditor';
 import type { Agent, Tool } from './types';
 import { AgentActions } from './features/agents/AgentActions';
-import { HistoryPage, TaskDetailPage } from './features/history/HistoryPage';
 export default function App() {
   // No sidebar: the logo is the one way home, the home page is the agents page, and chats are
-  // entered from there. History, payments and analytics still work by URL.
+  // entered from there.
   return (
     <div className="app-shell">
       <div className="main-shell">
@@ -58,10 +53,6 @@ export default function App() {
             <Route path="/agents" element={<Navigate to="/" replace />} />
             <Route path="/chat" element={<ChatRedirect />} />
             <Route path="/chat/:agentId" element={<ChatPage />} />
-            <Route path="/history" element={<HistoryPage />} />
-            <Route path="/history/:taskId" element={<TaskDetailPage />} />
-            <Route path="/payments" element={<PaymentsPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
@@ -290,7 +281,6 @@ function ChatPage() {
     onSuccess: () => {
       setMessage('');
       client.invalidateQueries({ queryKey: ['tasks', agentId] });
-      client.invalidateQueries({ queryKey: ['history'] });
     },
   });
   const list = tasks.data || [];
@@ -355,12 +345,6 @@ function ChatPage() {
                   <div className="assistant-body">
                     <strong>
                       {agent.name} <small>{dateTime(task.created_at)}</small>
-                      <Link
-                        className="task-history-link"
-                        to={`/history/${encodeURIComponent(task.id)}`}
-                      >
-                        View task
-                      </Link>
                     </strong>
                     <TaskCard task={task} agent={agent} />
                   </div>
@@ -423,151 +407,6 @@ function ChatPage() {
           </div>
         </section>
       </div>
-    </div>
-  );
-}
-function PaymentsPage() {
-  const workspace = useWorkspaceTasks();
-  const payments = workspace.tasks
-    .filter((task) => task.payment)
-    .sort(
-      (a, b) =>
-        Number(b.payment!.status === 'pending_approval') -
-          Number(a.payment!.status === 'pending_approval') ||
-        Date.parse(b.created_at) - Date.parse(a.created_at),
-    );
-  return (
-    <div className="page">
-      <PageHeading title="Payments" description="Review deposits before your agent pays." />
-      {workspace.isPending ? (
-        <Loading />
-      ) : workspace.error ? (
-        <ErrorNotice error={workspace.error} retry={workspace.retry} />
-      ) : payments.length ? (
-        <div className="payments-list">
-          {payments.map((task) => (
-            <article className="payment-entry" key={task.id}>
-              <PaymentCard payment={task.payment!} agentId={task.agent_id} />
-              <Link className="payment-task-link" to={`/chat/${task.agent_id}`}>
-                View conversation <ArrowRight size={16} />
-              </Link>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <Empty icon={<CreditCard size={28} />} title="No payments to review">
-          When an agent requests a deposit, approve or decline it here.
-        </Empty>
-      )}
-    </div>
-  );
-}
-function AnalyticsPage() {
-  const query = useQuery({
-    queryKey: ['analytics'],
-    queryFn: api.analytics,
-    refetchInterval: 5000,
-  });
-  return (
-    <div className="page">
-      <PageHeading title="Activity" description="Calls and outcomes at a glance." />
-      {query.isPending ? (
-        <Loading />
-      ) : query.isError ? (
-        <ErrorNotice error={query.error} retry={() => query.refetch()} />
-      ) : (
-        query.data && (
-          <>
-            <div className="stat-grid">
-              {[
-                { label: 'Calls handled', value: query.data.total_calls, icon: Phone },
-                {
-                  label: 'Successful outcomes',
-                  value: `${Math.round(query.data.success_rate)}%`,
-                  icon: CheckCheck,
-                },
-                {
-                  label: 'Average call length',
-                  value: `${Math.round(query.data.avg_duration_seconds)}s`,
-                  icon: Clock3,
-                },
-              ].map((stat) => (
-                <div className="stat-card" key={stat.label}>
-                  <span>
-                    <stat.icon size={18} />
-                  </span>
-                  <p>{stat.label}</p>
-                  <strong>{stat.value}</strong>
-                  <small>{DEMO ? 'From your demo activity' : 'From your agent activity'}</small>
-                </div>
-              ))}
-            </div>
-            <div className="analytics-grid">
-              <section className="chart-card">
-                <div className="section-heading">
-                  <h2>Calls through the week</h2>
-                  <span>Last 7 days</span>
-                </div>
-                <div
-                  className="bar-chart"
-                  role="img"
-                  aria-label={`Calls over the last seven days: ${query.data.calls_by_day.map((d) => `${d.date}: ${d.calls}`).join(', ')}`}
-                >
-                  {query.data.calls_by_day.map((day) => (
-                    <div className="chart-column" key={day.date}>
-                      <span>{day.calls}</span>
-                      <div className="bar-track">
-                        <div
-                          className="bar"
-                          style={{
-                            height: `${(day.calls / Math.max(1, ...query.data!.calls_by_day.map((d) => d.calls))) * 100}%`,
-                          }}
-                        />
-                      </div>
-                      <small>
-                        {new Date(`${day.date}T12:00:00`).toLocaleDateString('en-GB', {
-                          weekday: 'short',
-                        })}
-                      </small>
-                    </div>
-                  ))}
-                </div>
-              </section>
-              <section className="chart-card">
-                <div className="section-heading">
-                  <h2>Your team at a glance</h2>
-                </div>
-                {query.data.agents.map((agent) => (
-                  <div className="agent-stat" key={agent.name}>
-                    <span className="user-avatar">{agent.name.charAt(0)}</span>
-                    <div>
-                      <strong>{agent.name}</strong>
-                      <small>{agent.calls} calls handled</small>
-                    </div>
-                    <b>
-                      {Math.round(agent.success_rate)}%<small>success</small>
-                    </b>
-                  </div>
-                ))}
-              </section>
-            </div>
-            {!query.data.total_calls && (
-              <div className="info-box">
-                Your story starts with a task.{' '}
-                <Link to="/chat">
-                  Ask your agent to make a call <ArrowRight size={14} />
-                </Link>
-              </div>
-            )}
-            <p className="demo-note">
-              {DEMO
-                ? 'Live totals from simulated activity in this browser.'
-                : 'Powered by Tiger Data call events and continuous aggregates.'}{' '}
-              Success rate is measured across finished calls.
-            </p>
-          </>
-        )
-      )}
     </div>
   );
 }

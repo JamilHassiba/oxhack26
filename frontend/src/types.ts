@@ -56,10 +56,3 @@ export type Message = {
   content: string;
   created_at: string;
 };
-export type Analytics = {
-  total_calls: number;
-  success_rate: number;
-  avg_duration_seconds: number;
-  calls_by_day: { date: string; calls: number }[];
-  agents: { name: string; calls: number; success_rate: number }[];
-};

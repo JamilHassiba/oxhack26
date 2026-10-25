@@ -217,9 +217,6 @@ export function PaymentCard({ payment, agentId }: { payment: Payment; agentId: s
     mutationFn: (approve: boolean) => api.decide(payment.id, approve),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['tasks', agentId] });
-      client.invalidateQueries({ queryKey: ['history'] });
-      client.invalidateQueries({ queryKey: ['task', payment.task_id] });
-      client.invalidateQueries({ queryKey: ['analytics'] });
     },
   });
   return (
