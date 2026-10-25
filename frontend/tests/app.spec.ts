@@ -113,7 +113,7 @@ test('important text has readable contrast and controls fit the viewport', async
   await expect(page.getByRole('heading', { name: 'Maya', exact: true })).toBeVisible();
   const ratios = await page
     .locator(
-      'h1, .selected-agent h2, .permission-row > span, .agent-role, .enter-agent, .permissions-note, .agent-position',
+      'h1, .selected-agent h2, .permission-row > span, .agent-role, .enter-agent, .agent-position',
     )
     .evaluateAll((elements) => {
       const rgb = (value: string) => (value.match(/[\d.]+/g) || []).map(Number);

@@ -1570,14 +1570,6 @@ legend {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
-.permissions-note {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 12px;
-  margin-top: 15px;
-}
 .enter-agent {
   width: 100%;
   margin-top: 28px;
@@ -1758,18 +1750,15 @@ legend {
   padding: 0 32px;
 }
 .brand-button {
-  padding: 6px 12px 6px 7px;
+  /* Seamless: no box or border, same background as the page. The padding (cancelled by the negative
+     margin, so the logo doesn't move) makes clicking near the logo count too. */
+  padding: 12px 20px 12px 14px;
+  margin-left: -14px;
   font-size: 21px;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: 10px;
-  background: var(--surface, #fff);
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-}
-.brand-button:hover {
-  background: var(--sage);
-  border-color: #cdd5bf;
+  background: transparent;
+  cursor: pointer;
 }
 .brand-button:focus-visible {
   outline: 2px solid var(--accent);

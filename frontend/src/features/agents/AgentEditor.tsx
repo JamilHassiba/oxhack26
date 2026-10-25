@@ -5,6 +5,9 @@ import { api } from '../../api';
 import { tools } from '../../config';
 import { Modal, ErrorNotice } from '../../components/ui';
 import type { Agent, AgentInput, Tool } from '../../types';
+// Prefilled for new agents so creating one is just "type a name"; still fully editable.
+export const DEFAULT_PERSONA =
+  'Warm, polite and efficient. Keep calls short, confirm the key details (date, time and number of people) and stick to the times I give you.';
 export function AgentEditor({
   onClose,
   onCreated,
@@ -83,7 +86,7 @@ export function AgentEditor({
           Personality & instructions
           <textarea
             name="persona"
-            defaultValue={initialAgent?.persona || ''}
+            defaultValue={initialAgent?.persona ?? DEFAULT_PERSONA}
             disabled={mutation.isPending}
             placeholder="A thoughtful concierge who handles bookings and everyday errands…"
             required

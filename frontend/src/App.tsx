@@ -128,9 +128,12 @@ function AgentsPage() {
         title="Your agents"
         description="Create an agent, choose what it can do, then start a chat."
         action={
-          <button className="secondary create-agent-button" onClick={() => setCreating(true)}>
-            <Plus size={17} /> <span>Create agent</span>
-          </button>
+          // With no agents the empty state has its own Create agent button; one is enough.
+          agents.length > 0 && (
+            <button className="secondary create-agent-button" onClick={() => setCreating(true)}>
+              <Plus size={17} /> <span>Create agent</span>
+            </button>
+          )
         }
       />
       {query.isPending ? (
@@ -201,9 +204,6 @@ function AgentsPage() {
                 })}
               </div>
             </fieldset>
-            <p className="permissions-note">
-              <ShieldCheck size={14} /> Payments always ask for approval.
-            </p>
             <button
               className="primary enter-agent"
               disabled={enter.isPending}
@@ -428,9 +428,13 @@ function ChatPage() {
               disabled={active || send.isPending}
             />
             <div className="composer-bottom">
+              {/* Only says something when it matters: why the box is locked. */}
               <span>
-                <Sparkles size={13} />
-                {active ? 'Task in progress' : 'Enter to send · Shift + Enter for a new line'}
+                {active && (
+                  <>
+                    <Sparkles size={13} /> Task in progress
+                  </>
+                )}
               </span>
               <button
                 className="send-button"
