@@ -99,6 +99,8 @@ export const api = {
       : request<void>(`/payments/${encodeURIComponent(id)}/${approve ? 'approve' : 'deny'}`, {
           method: 'POST',
         }),
+  hangUp: (callId: string) =>
+    request<void>(`/calls/${encodeURIComponent(callId)}/hang-up`, { method: 'POST' }),
   calendar: (): Promise<CalendarEvent[]> => (DEMO ? demo.calendar() : request('/calendar')),
   analytics: (): Promise<Analytics> => (DEMO ? demo.analytics() : request('/analytics/summary')),
 };

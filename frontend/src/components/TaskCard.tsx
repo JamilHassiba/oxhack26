@@ -12,6 +12,7 @@ import {
   ArrowRight,
   CreditCard,
   ShieldCheck,
+  PhoneOff,
 } from 'lucide-react';
 import { api, BASE, DEMO } from '../api';
 import { labels, dateTime, money } from '../config';
@@ -98,6 +99,12 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
     .filter((e) => e.kind === 'transcript_line')
     .map((e) => ({ speaker: e.payload.speaker || agent.name, text: e.payload.text || '' }));
   const transcript = streamed.length ? streamed : task.call?.transcript || [];
+  const callLive =
+    !DEMO &&
+    running &&
+    !!task.call &&
+    !task.call.ended_at &&
+    !events.some((e) => e.kind === 'ended');
   // While the call is live, keep the newest line in view as the conversation comes in.
   const lastLine = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -123,6 +130,7 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
           {labels[task.status]}
         </span>
       </div>
+      {callLive && task.call && <HangUpButton callId={task.call.id} />}
       {task.summary && (
         <div className={`summary ${task.status === 'failed' ? 'summary-error' : ''}`}>
           <span>
@@ -197,6 +205,22 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
           <ArrowRight size={16} />
         </Link>
       )}
+    </div>
+  );
+}
+function HangUpButton({ callId }: { callId: string }) {
+  // Stays "Hanging up…" after success: the card switches over when the call's `ended` event arrives.
+  const hangUp = useMutation({ mutationFn: () => api.hangUp(callId) });
+  return (
+    <div className="hang-up">
+      <button
+        className="danger"
+        onClick={() => hangUp.mutate()}
+        disabled={hangUp.isPending || hangUp.isSuccess}
+      >
+        <PhoneOff size={16} /> {hangUp.isPending || hangUp.isSuccess ? 'Hanging up…' : 'Hang up'}
+      </button>
+      {hangUp.isError && <ErrorNotice error={hangUp.error} />}
     </div>
   );
 }

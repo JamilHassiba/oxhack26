@@ -176,7 +176,8 @@ svg {
   margin-top: 10px;
 }
 .primary,
-.secondary {
+.secondary,
+.danger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -827,6 +828,19 @@ legend {
   line-height: 1.2;
   letter-spacing: -0.8px;
   font-weight: 650;
+}
+/* Outlined, so it never looks like the Approve button next to it. */
+.danger {
+  color: #a3361b;
+  background: #fff;
+  border: 1px solid #e2b4a4;
+}
+.danger:hover:not(:disabled) {
+  background: #fcf0e7;
+  border-color: #c9765c;
+}
+.hang-up {
+  padding: 0 17px 17px;
 }
 .payment-actions {
   display: flex;

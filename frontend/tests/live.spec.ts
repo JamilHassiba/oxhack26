@@ -23,6 +23,8 @@ async function backend(page: Page, initial: Task[] = []) {
     failChat: false,
     failPatch: false,
     failDelete: false,
+    failHangUp: false,
+    hungUp: [] as string[],
     unavailable: new Set<string>(),
     lastMessage: {} as Record<string, unknown>,
   };
@@ -105,6 +107,20 @@ async function backend(page: Page, initial: Task[] = []) {
       ];
       return route.fulfill({ status: 204 });
     }
+    const hangUp = path.match(/^\/api\/calls\/([^/]+)\/hang-up$/);
+    if (hangUp) {
+      if (state.failHangUp)
+        return route.fulfill({
+          status: 503,
+          json: { detail: 'This call can’t be hung up from here. Hang up on the phone instead.' },
+        });
+      state.hungUp.push(hangUp[1]);
+      const task = state.tasks.find((t) => t.call?.id === hangUp[1])!;
+      task.status = 'failed';
+      task.summary = 'You hung up the call before it finished.';
+      task.call!.ended_at = new Date().toISOString();
+      return route.fulfill({ status: 202, json: { status: 'hanging_up' } });
+    }
     const detail = path.match(/^\/api\/tasks\/([^/]+)$/);
     if (detail) {
       const task = state.tasks.find((t) => t.id === detail[1]);
@@ -143,6 +159,24 @@ test('HTTP adapter, named SSE, approval, reload, and no demo metadata on the wir
   await expect(page.getByText('Reservation confirmed by backend.')).toBeVisible();
   await page.reload();
   await expect(page.getByText('Reservation confirmed by backend.')).toBeVisible();
+});
+test('Hang up ends a live call, and explains when it cannot', async ({ page }) => {
+  const state = await backend(page);
+  state.failHangUp = true;
+  await page.goto(`/chat/${agent.id}`);
+  await page.getByRole('textbox', { name: 'Message Maya' }).fill('Book dinner');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  const hangUp = page.getByRole('button', { name: 'Hang up' });
+  await expect(hangUp).toBeVisible();
+  await hangUp.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'test-results/hang-up-button.png' });
+  await hangUp.click();
+  await expect(page.getByRole('alert')).toContainText('Hang up on the phone instead.');
+  state.failHangUp = false;
+  await hangUp.click();
+  await expect(page.getByText('You hung up the call before it finished.')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Hang up|Hanging up/ })).toHaveCount(0);
+  expect(state.hungUp).toEqual(['call-task-0']);
 });
 test('failed sends preserve the draft for a deliberate retry', async ({ page }) => {
   const state = await backend(page);
