@@ -45,9 +45,9 @@ def follower(monkeypatch):
 
     async def write_new_lines(call_id, lines):
         if w["ended"]:
-            return False
+            return None
         w["written"].extend(lines[len(w["written"]) :])  # like the real one: only lines not stored yet
-        return True
+        return ("Maya", "The Ivy")
 
     monkeypatch.setattr(live_transcript, "call_state", call_state)
     monkeypatch.setattr(live_transcript, "fetch_conversation", fetch_conversation)
@@ -87,6 +87,29 @@ def test_never_writes_a_line_that_is_still_being_spoken(follower):
         "Hi, I'm Maya, an AI assistant calling for Alex.",
         "How can I help?",
     ]
+
+
+def test_shares_the_turn_still_being_spoken_then_forgets_it(follower):
+    seen = []
+    snapshots = [
+        {"status": "in-progress", "transcript": [TURNS[0], turn("agent", "Hi, I'm Ma", 3)]},
+        {"status": "in-progress", "transcript": TURNS[:2]},
+        {"status": "done", "transcript": TURNS},
+    ]
+
+    async def fetch_conversation(client, conversation_id):
+        seen.append(live_transcript.speaking("call-1"))  # what the stream would send before this poll
+        return snapshots.pop(0) if len(snapshots) > 1 else snapshots[0]
+
+    live_transcript.fetch_conversation = fetch_conversation  # restored by the fixture's monkeypatch
+    asyncio.run(live_transcript.follow("call-1"))
+
+    assert seen == [
+        None,
+        {"speaker": "Maya", "text": "Hi, I'm Ma"},
+        {"speaker": "Maya", "text": "Hi, I'm Maya, an AI assistant calling for Alex."},
+    ]
+    assert live_transcript.speaking("call-1") is None
 
 
 def test_stops_once_the_webhook_has_ended_the_call(follower):

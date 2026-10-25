@@ -352,26 +352,42 @@ function ChatPage() {
                   submit(e);
                 }
               }}
-              placeholder={active ? 'Task in progress…' : `Message ${agent.name}…`}
-              rows={1}
+              placeholder={`Message ${agent.name}…`}
+              rows={2}
               maxLength={4000}
               disabled={active || send.isPending}
             />
-            <button
-              className="send-button"
-              aria-label="Send message"
-              disabled={!message.trim() || active || send.isPending}
-            >
-              {send.isPending ? <LoaderCircle size={18} className="spin" /> : <ArrowUp size={18} />}
-            </button>
+            <div className="composer-bottom">
+              {/* Only says something when it matters: why the box is locked. */}
+              <span>
+                {active && (
+                  <>
+                    <Sparkles size={13} /> Task in progress
+                  </>
+                )}
+              </span>
+              <button
+                className="send-button"
+                aria-label="Send message"
+                disabled={!message.trim() || active || send.isPending}
+              >
+                {send.isPending ? (
+                  <LoaderCircle size={18} className="spin" />
+                ) : (
+                  <>
+                    <span>Send</span>
+                    <ArrowUp size={18} />
+                  </>
+                )}
+              </button>
+            </div>
+            {send.isError && <ErrorNotice error={send.error} />}
           </form>
-          {send.isError && <ErrorNotice error={send.error} />}
-          <div className="composer-note">
-            <ShieldCheck size={12} />
-            {DEMO
-              ? 'Demo mode. No real calls, emails, or charges.'
-              : 'Payments always need your approval.'}
-          </div>
+          {DEMO && (
+            <div className="composer-note">
+              <ShieldCheck size={12} /> Demo mode. No real calls, emails, or charges.
+            </div>
+          )}
         </section>
       </div>
     </div>

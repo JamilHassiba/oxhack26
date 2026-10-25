@@ -3,10 +3,12 @@
 GET /calls/{id}/events/stream, as in docs/EVENTS.md: sends the call's existing events first, then new ones
 as they're written, one SSE message per event (`event: <kind>`, `id: <ts>`, `data: <row JSON>`), and
 closes after `ended`. The browser resumes after a reconnect with Last-Event-ID. Rows are read by short
-polling, which is plenty for one demo call at a time.
+polling, which is plenty for one demo call at a time. In between, the turn still being spoken (not stored
+yet, see services/live_transcript.py) is sent as `event: speaking` with {"speaker", "text"}, and no id.
 """
 
 import asyncio
+import json
 import time
 from collections.abc import AsyncIterator
 from datetime import datetime
@@ -18,11 +20,12 @@ from psycopg.rows import dict_row
 from sse_starlette import EventSourceResponse, ServerSentEvent
 
 from app import db
+from app.services import live_transcript
 from app.evan.models import CallEvent
 
 router = APIRouter(tags=["events"])
 
-POLL_SECONDS = 1.0
+POLL_SECONDS = 0.5
 PING_SECONDS = 15
 MAX_STREAM_SECONDS = 30 * 60  # calls are capped well below this; stops a forgotten tab polling forever
 
@@ -82,6 +85,7 @@ async def call_event_stream(
 
     async def stream() -> AsyncIterator[ServerSentEvent]:
         last, deadline = since, time.monotonic() + MAX_STREAM_SECONDS
+        said = None  # the last `speaking` turn sent
         while time.monotonic() < deadline and not await request.is_disconnected():
             for row in await events_after(call_id, last):
                 last = row["ts"]
@@ -93,6 +97,10 @@ async def call_event_stream(
                 )
                 if event.kind == "ended":
                     return
+            now = live_transcript.speaking(call_id)
+            if now and now != said:
+                yield ServerSentEvent(data=json.dumps(now), event="speaking")
+            said = now
             await asyncio.sleep(POLL_SECONDS)
 
     return EventSourceResponse(stream(), ping=PING_SECONDS)

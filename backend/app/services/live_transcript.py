@@ -5,6 +5,9 @@ progress, this follower asks ElevenLabs for the conversation so far every POLL_S
 lines as `transcript_line` events (plus `answered` with the first one), so the live stream
 (GET /calls/{id}/events/stream) shows them during the call. The webhook then skips the lines already
 written. Without an ElevenLabs key (local development, practice runs) it does nothing.
+
+The newest turn may still be being spoken, so it is only stored once the next turn starts. Until then it
+is kept in memory (speaking()) and the stream sends it as a `speaking` message, so the page shows it at once.
 """
 
 import asyncio
@@ -22,12 +25,13 @@ from app.services.transcript import Line, transcript_lines
 log = logging.getLogger(__name__)
 
 CONVERSATION_URL = "https://api.elevenlabs.io/v1/convai/conversations/{}"
-POLL_SECONDS = 2.0
+POLL_SECONDS = 1.0
 MAX_SECONDS = 15 * 60  # calls are capped well below this
 MAX_FAILURES = 10  # consecutive errors before giving up (the webhook still writes the transcript)
 FINISHED = {"done", "failed"}
 
 _followers: set[asyncio.Task] = set()  # keeps running followers from being garbage-collected
+_speaking: dict[str, dict[str, str]] = {}  # call id -> the turn still being spoken: {"speaker", "text"}
 
 
 def start(call_id: str) -> None:
@@ -37,6 +41,11 @@ def start(call_id: str) -> None:
     task = asyncio.create_task(follow(call_id))
     _followers.add(task)
     task.add_done_callback(_followers.discard)
+
+
+def speaking(call_id: str) -> dict[str, str] | None:
+    """The turn still being spoken on a live call, not stored yet. None between turns or after the call."""
+    return _speaking.get(call_id)
 
 
 async def call_state(call_id: str) -> tuple[str | None, bool]:
@@ -58,8 +67,9 @@ async def fetch_conversation(client: httpx.AsyncClient, conversation_id: str) ->
     return response.json()
 
 
-async def write_new_lines(call_id: str, lines: list[Line]) -> bool:
-    """Writes the lines not stored yet. Returns False once the call has ended (the webhook took over)."""
+async def write_new_lines(call_id: str, lines: list[Line]) -> tuple[str, str] | None:
+    """Writes the lines not stored yet. Returns the (agent, business) speaker names, or None once the call
+    has ended (the webhook took over)."""
     async with db.get_pool().connection() as conn, conn.transaction():
         # Same lock as the webhook's, so the two never write the same lines.
         row = await (
@@ -77,15 +87,19 @@ async def write_new_lines(call_id: str, lines: list[Line]) -> bool:
             )
         ).fetchone()
         if row is None or row[0] is not None:
-            return False
+            return None
         _, agent, contact, written, answered = row
+        names = (agent, contact or "Restaurant")
         new = lines[written:]
         if new and not answered:
             await _event(conn, call_id, "answered", {"text": "Connected"})
         for line in new:
-            speaker = agent if line.role == "agent" else (contact or "Restaurant")
-            await _event(conn, call_id, "transcript_line", {"speaker": speaker, "text": line.text})
-    return True
+            await _event(conn, call_id, "transcript_line", {"speaker": speaker(line, names), "text": line.text})
+    return names
+
+
+def speaker(line: Line, names: tuple[str, str]) -> str:
+    return names[0] if line.role == "agent" else names[1]
 
 
 async def _event(conn, call_id: str, kind: str, payload: dict[str, Any]) -> None:
@@ -97,6 +111,13 @@ async def _event(conn, call_id: str, kind: str, payload: dict[str, Any]) -> None
 
 
 async def follow(call_id: str) -> None:
+    try:
+        await _follow(call_id)
+    finally:
+        _speaking.pop(call_id, None)
+
+
+async def _follow(call_id: str) -> None:
     deadline, failures = time.monotonic() + MAX_SECONDS, 0
     async with httpx.AsyncClient() as client:
         while time.monotonic() < deadline and failures < MAX_FAILURES:
@@ -112,10 +133,11 @@ async def follow(call_id: str) -> None:
                 finished = conversation.get("status") in FINISHED
                 # The newest turn may still be being spoken, and a line once written is never rewritten (the
                 # webhook skips lines already stored). So write it only once the next turn has started.
-                if not await write_new_lines(call_id, lines if finished else lines[:-1]):
+                names = await write_new_lines(call_id, lines if finished else lines[:-1])
+                if names is None or finished:
                     return
-                if finished:
-                    return
+                if lines:
+                    _speaking[call_id] = {"speaker": speaker(lines[-1], names), "text": lines[-1].text}
                 failures = 0
             except Exception:
                 failures += 1

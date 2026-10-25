@@ -19,10 +19,13 @@ import type { Agent, CallEvent, Task, Payment } from '../types';
 function useCallEvents(task: Task) {
   const [events, setEvents] = useState<CallEvent[]>([]);
   const [reconnecting, setReconnecting] = useState(false);
+  // The turn still being spoken on a live call: shown at once, replaced by its stored line when it ends.
+  const [speaking, setSpeaking] = useState<{ speaker: string; text: string } | null>(null);
   const callId = task.call?.id;
   const terminal = task.status === 'done' || task.status === 'failed';
   useEffect(() => {
     setEvents([]);
+    setSpeaking(null);
     setReconnecting(false);
     if (DEMO || !callId || terminal) return;
     const stream = new EventSource(`${BASE}/calls/${encodeURIComponent(callId)}/events/stream`);
@@ -56,6 +59,13 @@ function useCallEvents(task: Task) {
       'ended',
     ])
       stream.addEventListener(kind, receive as EventListener);
+    stream.addEventListener('speaking', (message: MessageEvent) => {
+      try {
+        setSpeaking(JSON.parse(message.data));
+      } catch {
+        /* Ignore incomplete frames. */
+      }
+    });
     stream.onopen = () => setReconnecting(false);
     stream.onerror = () => setReconnecting(true);
     return () => stream.close();
@@ -71,10 +81,14 @@ function useCallEvents(task: Task) {
       )
     )
       combined.push(e);
-  return { events: combined.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts)), reconnecting };
+  return {
+    events: combined.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts)),
+    speaking,
+    reconnecting,
+  };
 }
 export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
-  const { events, reconnecting } = useCallEvents(task);
+  const { events, speaking, reconnecting } = useCallEvents(task);
   const [now, setNow] = useState(Date.now());
   const running = !['done', 'failed'].includes(task.status);
   useEffect(() => {
@@ -95,13 +109,17 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
   const streamed = events
     .filter((e) => e.kind === 'transcript_line')
     .map((e) => ({ speaker: e.payload.speaker || agent.name, text: e.payload.text || '' }));
-  const transcript = streamed.length ? streamed : task.call?.transcript || [];
+  const stored = streamed.length ? streamed : task.call?.transcript || [];
   const callLive =
     !DEMO &&
     running &&
     !!task.call &&
     !task.call.ended_at &&
     !events.some((e) => e.kind === 'ended');
+  // The turn being spoken goes last, until its stored line (which starts the same way) arrives.
+  const inProgress =
+    callLive && speaking && !stored.at(-1)?.text.startsWith(speaking.text) ? speaking : null;
+  const transcript = inProgress ? [...stored, inProgress] : stored;
   // While the call is live, keep the newest line in view as the conversation comes in.
   const lastLine = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -154,7 +172,7 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
             {transcript.length ? (
               transcript.map((line, i) => (
                 <div
-                  className={`transcript-line ${line.speaker === agent.name ? 'agent-line' : ''}`}
+                  className={`transcript-line ${line.speaker === agent.name ? 'agent-line' : ''} ${line === inProgress ? 'speaking-line' : ''}`}
                   key={i}
                   ref={i === transcript.length - 1 ? lastLine : undefined}
                 >
