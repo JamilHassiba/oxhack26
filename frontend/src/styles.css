@@ -487,13 +487,29 @@ legend {
   margin: 0 auto;
   padding: 0 32px 20px;
 }
+/* As wide as the message box, plus room either side for the avatars, which sit outside the bubbles. */
 .conversation-scroll {
   height: calc(100dvh - 347px);
   min-height: 310px;
   overflow-y: auto;
-  padding: 24px 3px;
-  scrollbar-width: thin;
-  scrollbar-color: #bfcab1 transparent;
+  margin: 0 -56px;
+  padding: 24px 56px;
+  scrollbar-width: none;
+}
+.conversation-scroll::-webkit-scrollbar {
+  display: none;
+}
+/* Too narrow for avatars outside the column: drop them and keep the full width. */
+@media (max-width: 940px) {
+  .assistant-message > .avatar,
+  .user-message > .user-avatar {
+    display: none;
+  }
+  .conversation-scroll {
+    margin: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
 }
 .composer {
   background: #fff;
@@ -561,6 +577,7 @@ legend {
   margin-bottom: 26px;
 }
 .user-message {
+  position: relative;
   display: flex;
   justify-content: flex-end;
   align-items: flex-start;
@@ -577,9 +594,17 @@ legend {
   overflow-wrap: anywhere;
 }
 .assistant-message {
-  display: flex;
-  align-items: flex-start;
-  gap: 11px;
+  position: relative;
+}
+.user-message > .user-avatar {
+  position: absolute;
+  top: 0;
+  right: -46px;
+}
+.assistant-message > .avatar {
+  position: absolute;
+  top: 0;
+  left: -50px;
 }
 .assistant-body {
   flex: 1;
@@ -1089,9 +1114,7 @@ legend {
   .composer-note {
     font-size: 10px;
   }
-  .assistant-message > .avatar {
-    display: none;
-  }
+
   .user-message > span:first-child {
     font-size: 14px;
   }
