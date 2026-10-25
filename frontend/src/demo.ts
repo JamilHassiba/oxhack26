@@ -7,16 +7,12 @@ const presets: Agent[] = [
   {
     id: 'maya',
     name: 'Maya',
-    persona:
-      'Your thoughtful everyday concierge. I take care of bookings, appointments, and the little details, so you can focus on your day.',
     voice: 'Warm & natural',
     tools: ['phone', 'email', 'calendar', 'payments'],
   },
   {
     id: 'leo',
     name: 'Leo',
-    persona:
-      'Your calm, organised work assistant. I coordinate your schedule and keep your inbox in order.',
     voice: 'Calm & clear',
     tools: ['email', 'calendar'],
   },
@@ -187,19 +183,13 @@ function findTask(id: string) {
   return task;
 }
 function validateAgent(input: AgentInput) {
-  if (
-    !input.name.trim() ||
-    input.name.trim().length > 40 ||
-    !input.persona.trim() ||
-    input.persona.length > 1500
-  )
-    throw new Error('Enter a name and instructions within the length limits.');
+  if (!input.name.trim() || input.name.trim().length > 40)
+    throw new Error('Enter a name of up to 40 characters.');
   if (input.tools.some((t) => !['phone', 'email', 'calendar', 'payments'].includes(t)))
     throw new Error('Unknown tool permission.');
   return {
     ...input,
     name: input.name.trim(),
-    persona: input.persona.trim(),
     tools: [...new Set(input.tools)],
   };
 }

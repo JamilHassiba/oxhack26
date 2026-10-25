@@ -18,7 +18,6 @@ TASK = {
     "status": "planning",
     "agent_id": "agent-1",
     "agent_name": "Maya",
-    "persona": "Friendly and brief.",
     "tools": ["phone"],
     "user_name": "Demo User",
 }
@@ -99,8 +98,8 @@ def test_phone_permission_gives_the_call_tool():
 def test_prompt_says_which_tools_exist():
     from app.orchestrator.prompts import build_system_prompt
 
-    with_tools = build_system_prompt(agent_name="Maya", persona="", user_name="Alex", tool_names=["place_call"])
-    without = build_system_prompt(agent_name="Maya", persona="", user_name="Alex", tool_names=[])
+    with_tools = build_system_prompt(agent_name="Maya", user_name="Alex", tool_names=["place_call"])
+    without = build_system_prompt(agent_name="Maya", user_name="Alex", tool_names=[])
 
     assert "Your tools for this task: place_call" in with_tools
     assert "You have no tools for this task" in without
@@ -134,7 +133,7 @@ def test_long_summaries_are_cut(monkeypatch):
 def test_no_phone_permission_gets_blunt_rule():
     from app.orchestrator.prompts import build_system_prompt
 
-    kwargs = dict(agent_name="Maya", persona="", user_name="Alex", tool_names=["create_calendar_event"])
+    kwargs = dict(agent_name="Maya", user_name="Alex", tool_names=["create_calendar_event"])
     assert "phone permission is off" in build_system_prompt(**kwargs, phone_allowed=False)
     # After a call (on_call_finished) the default keeps it out, so booked calls still go in the calendar.
     assert "phone permission is off" not in build_system_prompt(**kwargs)

@@ -1,6 +1,6 @@
 // Provisional contract from docs/DESIGN.md §4–5. Generate openapi.d.ts once FastAPI lands.
 export type Tool = 'phone' | 'email' | 'calendar' | 'payments';
-export type Agent = { id: string; name: string; persona: string; voice: string; tools: Tool[] };
+export type Agent = { id: string; name: string; voice: string; tools: Tool[] };
 export type AgentInput = Omit<Agent, 'id'>;
 export type TaskStatus = 'planning' | 'calling' | 'awaiting_approval' | 'done' | 'failed';
 export type CallEvent = {

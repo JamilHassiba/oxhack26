@@ -14,13 +14,11 @@ from pydantic import (
 Tool = Literal["phone", "email", "calendar", "payments"]
 TaskStatus = Literal["planning", "calling", "awaiting_approval", "done", "failed"]
 Name = Annotated[str, Field(min_length=1, max_length=40)]
-Persona = Annotated[str, Field(min_length=1, max_length=1500)]
 
 
 class AgentInput(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     name: Name
-    persona: Persona
     voice: str = Field(min_length=1, max_length=100)
     tools: list[Tool]
 
@@ -33,7 +31,6 @@ class AgentInput(BaseModel):
 class AgentPatch(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     name: Name | None = None
-    persona: Persona | None = None
     voice: str | None = Field(default=None, min_length=1, max_length=100)
     tools: list[Tool] | None = None
 

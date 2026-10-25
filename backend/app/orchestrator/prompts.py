@@ -8,7 +8,6 @@ ALL_PERMISSIONS = ["phone", "email", "calendar", "payments"]
 def build_system_prompt(
     *,
     agent_name: str,
-    persona: str,
     user_name: str,
     tool_names: list[str],
     phone_allowed: bool = True,
@@ -17,7 +16,6 @@ def build_system_prompt(
     """`phone_allowed=False` (the agent has no phone permission) adds a blunt rule: Gemini otherwise
     "books" a table by putting an unconfirmed dinner in the calendar."""
     now = now or datetime.now(timezone.utc)
-    persona_line = f"\n{persona.strip()}\n" if persona.strip() else ""
     no_phone_line = (
         ""
         if phone_allowed
@@ -28,12 +26,7 @@ def build_system_prompt(
     if tool_names:
         tools_line = f"Your tools for this task: {', '.join(tool_names)}. Do not call any other function."
         if "place_call" in tool_names:
-            tools_line += (
-                "\n- To phone a business: call place_call with the business's name as the user gave it."
-                " Put the details (how many people, budget, requirements) in constraints and only the alternatives"
-                " the user allowed in fallbacks. The call then happens in the background, so stop after place_call."
-                "\n- You don't need a phone number: the call is connected for you. Never ask the user for one."
-            )
+            tools_line += "\n- You don't need a phone number to call a business: the call is connected for you."
         if "create_calendar_event" in tool_names:
             tools_line += (
                 "\n- Only add a calendar event when the user asks you to put something in their calendar, or after"
@@ -42,7 +35,7 @@ def build_system_prompt(
     else:
         # Without this, Gemini sometimes tries to call a tool it doesn't have and returns nothing.
         tools_line = "You have no tools for this task. Do not call any function; answer in plain text only."
-    return f"""You are {agent_name}, an AI concierge agent working for {user_name}.{persona_line}
+    return f"""You are {agent_name}, an AI concierge agent working for {user_name}.
 How you work:
 - Each user message is one task. Complete it with your tools, then reply with a short summary (2-4 sentences) of what you did and the result.
 - You cannot ask the user questions during a task. If something essential is missing (for example no time or place), don't guess: finish with a summary that says exactly what you need, and the user will send a new message.

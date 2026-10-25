@@ -48,7 +48,6 @@ describe('demo booking lifecycle', () => {
   it('does not use disabled tools', async () => {
     const input: AgentInput = {
       name: 'Minimal',
-      persona: 'Help me',
       voice: 'Calm',
       tools: ['email'],
     };
@@ -64,7 +63,6 @@ describe('demo booking lifecycle', () => {
   it('shows failure instead of booking a deposit without a payment tool', async () => {
     const agent = await demo.createAgent({
       name: 'Phone only',
-      persona: 'Calls',
       voice: 'Warm',
       tools: ['phone'],
     });
@@ -171,7 +169,7 @@ describe('rehearsal scenarios and history', () => {
     const original = (await demo.agents())[0];
     const copy = await demo.createAgent({ ...original, name: 'Maya copy' });
     expect(copy.id).not.toBe(original.id);
-    await demo.updateAgent(copy.id, { tools: ['email'], persona: 'Different instructions' });
+    await demo.updateAgent(copy.id, { tools: ['email'] });
     expect((await demo.agents())[0].tools).toContain('phone');
     expect(await demo.tasks(copy.id)).toEqual([]);
   });
@@ -192,7 +190,7 @@ describe('rehearsal scenarios and history', () => {
         throw new Error('Unavailable');
       },
     });
-    await demo.createAgent({ name: 'Private browser', persona: 'Help', voice: 'Warm', tools: [] });
+    await demo.createAgent({ name: 'Private browser', voice: 'Warm', tools: [] });
     const { task_id } = await demo.send('maya', 'Book dinner', 'alternative_time');
     vi.advanceTimersByTime(7000);
     expect((await demo.task(task_id)).status).toBe('done');

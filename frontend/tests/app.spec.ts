@@ -10,9 +10,6 @@ test('create an agent with explicit tool permissions', async ({ page }) => {
   await page.screenshot({ path: `/tmp/concierge-${test.info().project.name}.png`, fullPage: true });
   await page.getByRole('button', { name: 'Create agent', exact: true }).click();
   await page.getByRole('textbox', { name: 'Agent name' }).fill('Robin');
-  await page
-    .getByRole('textbox', { name: 'Personality' })
-    .fill('A practical assistant for my schedule.');
   await page.getByRole('dialog').getByRole('checkbox', { name: 'Payments' }).uncheck();
   await page.getByRole('dialog').getByRole('button', { name: 'Create agent', exact: true }).click();
   const card = page
@@ -157,7 +154,6 @@ test('edit, duplicate, and delete an agent without deleting its original', async
   await page.getByLabel('Manage agent').click();
   await page.getByRole('button', { name: 'Edit agent', exact: true }).click();
   await page.getByRole('textbox', { name: 'Agent name' }).fill('Maya edited');
-  await page.getByRole('textbox', { name: 'Personality' }).fill('Concise and practical.');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('heading', { name: 'Maya edited', exact: true })).toBeVisible();
   await page.getByLabel('Manage agent').click();

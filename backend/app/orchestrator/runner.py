@@ -58,7 +58,6 @@ async def run_task(task_id: str) -> None:
             model=get_settings().gemini_model,
             system_instruction=build_system_prompt(
                 agent_name=task["agent_name"],
-                persona=task["persona"],
                 user_name=task["user_name"],
                 tool_names=[t.name for t in tools],
                 phone_allowed="phone" in task["tools"],

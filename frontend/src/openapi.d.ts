@@ -259,8 +259,6 @@ export interface components {
     Agent: {
       /** Name */
       name: string;
-      /** Persona */
-      persona: string;
       /** Voice */
       voice: string;
       /** Tools */
@@ -272,8 +270,6 @@ export interface components {
     AgentInput: {
       /** Name */
       name: string;
-      /** Persona */
-      persona: string;
       /** Voice */
       voice: string;
       /** Tools */
@@ -283,8 +279,6 @@ export interface components {
     AgentPatch: {
       /** Name */
       name?: string | null;
-      /** Persona */
-      persona?: string | null;
       /** Voice */
       voice?: string | null;
       /** Tools */

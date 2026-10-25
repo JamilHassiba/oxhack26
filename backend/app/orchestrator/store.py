@@ -58,7 +58,7 @@ async def load_task(task_id: str) -> dict[str, Any]:
         await cur.execute(
             """
             SELECT t.id::text AS id, t.goal, t.status,
-                   a.id::text AS agent_id, a.name AS agent_name, a.persona, a.tools,
+                   a.id::text AS agent_id, a.name AS agent_name, a.tools,
                    u.name AS user_name
             FROM tasks t
             JOIN agents a ON a.id = t.agent_id

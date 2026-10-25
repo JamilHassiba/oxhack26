@@ -3,7 +3,6 @@ import type { Agent, Task } from '../src/types';
 const agent: Agent = {
   id: 'backend-maya',
   name: 'Maya',
-  persona: 'Helpful',
   voice: 'Warm',
   tools: ['phone', 'payments', 'calendar'],
 };

@@ -14,7 +14,7 @@ from app.evan.models import (
 )
 
 ACTIVE = ("planning", "calling", "awaiting_approval")
-AGENT_COLUMNS = "id, name, persona, voice, tools"
+AGENT_COLUMNS = "id, name, voice, tools"
 # Lateral subqueries avoid multiplying rows when a task has several calls/events.
 TASK_SELECT = """
 SELECT t.id, t.agent_id, t.goal, t.status, t.summary, t.created_at,
@@ -78,12 +78,11 @@ class Repository:
         if not user:
             raise HTTPException(503, "Seed the demo user before creating an agent.")
         row = await self.one(
-            f"INSERT INTO agents (id, user_id, name, persona, voice, tools) VALUES (%s, %s, %s, %s, %s, %s) RETURNING {AGENT_COLUMNS}",
+            f"INSERT INTO agents (id, user_id, name, voice, tools) VALUES (%s, %s, %s, %s, %s) RETURNING {AGENT_COLUMNS}",
             (
                 uuid4(),
                 user["id"],
                 data.name,
-                data.persona,
                 data.voice,
                 Jsonb(data.tools),
             ),

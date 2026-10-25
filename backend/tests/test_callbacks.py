@@ -48,7 +48,6 @@ def world(monkeypatch):
             "goal": "Book a table for 4 tomorrow at 6pm",
             "status": TaskStatus.CALLING,
             "agent_name": "Maya",
-            "persona": "",
             "tools": ["phone", "calendar"],
             "user_name": "Demo User",
         },
