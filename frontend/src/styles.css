@@ -107,8 +107,8 @@ svg {
   height: 34px;
   display: grid;
   place-items: center;
-  background: #ede8fa; /* profile icons: soft violet, set apart from the indigo accent */
-  color: #4e3796;
+  background: #1e3a8a; /* profile icons: dark blue with a white letter */
+  color: #fff;
   border-radius: 50%;
   flex-shrink: 0;
   font-weight: 650;
@@ -220,8 +220,8 @@ svg {
   place-items: center;
   width: 47px;
   height: 47px;
-  background: #ede8fa;
-  color: #4e3796;
+  background: #1e3a8a;
+  color: #fff;
   border-radius: 14px;
   font-family: Georgia, serif;
   font-size: 27px;
@@ -234,7 +234,7 @@ svg {
   bottom: -1px;
   right: -1px;
   border-radius: 50%;
-  background: #6d4fd1;
+  background: #60a5fa;
   border: 2px solid #fff;
 }
 .avatar.lavender {
@@ -589,7 +589,8 @@ legend {
   padding: 14px 17px;
   max-width: 85%;
   border-radius: 11px 3px 11px 11px;
-  background: #eef0fb;
+  background: #1e3a8a; /* same dark blue as the profile icons; white text reads clearly on it */
+  color: #fff;
   font-size: 14px;
   line-height: 1.7;
   overflow-wrap: anywhere;
