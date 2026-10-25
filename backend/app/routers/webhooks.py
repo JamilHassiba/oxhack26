@@ -103,8 +103,8 @@ def event_rows(
 ) -> list[tuple[datetime, str, dict]]:
     """The call's events at their real times in the call, each strictly after the previous one.
 
-    skip_lines / answered_already: the live transcript follower (services/live_transcript.py) already wrote
-    that many lines (and `answered`) during the call, so they aren't written twice.
+    skip_lines / answered_already: that many lines (and `answered`) are already stored for the call, so
+    they aren't written twice.
     """
     base = max(end.started_at or after, after)
     rows: list[tuple[datetime, str, dict]] = []

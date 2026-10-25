@@ -47,7 +47,7 @@ export const dateTime = (date: string) =>
 export const money = (amount: number, currency: string) =>
   new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(amount / 100);
 export const labels = {
-  planning: 'Thinking it through',
+  planning: 'Thinking',
   calling: 'On the call',
   awaiting_approval: 'Needs your approval',
   done: 'Completed',

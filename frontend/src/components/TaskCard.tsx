@@ -19,13 +19,10 @@ import type { Agent, CallEvent, Task, Payment } from '../types';
 function useCallEvents(task: Task) {
   const [events, setEvents] = useState<CallEvent[]>([]);
   const [reconnecting, setReconnecting] = useState(false);
-  // The turn still being spoken on a live call: shown at once, replaced by its stored line when it ends.
-  const [speaking, setSpeaking] = useState<{ speaker: string; text: string } | null>(null);
   const callId = task.call?.id;
   const terminal = task.status === 'done' || task.status === 'failed';
   useEffect(() => {
     setEvents([]);
-    setSpeaking(null);
     setReconnecting(false);
     if (DEMO || !callId || terminal) return;
     const stream = new EventSource(`${BASE}/calls/${encodeURIComponent(callId)}/events/stream`);
@@ -59,13 +56,6 @@ function useCallEvents(task: Task) {
       'ended',
     ])
       stream.addEventListener(kind, receive as EventListener);
-    stream.addEventListener('speaking', (message: MessageEvent) => {
-      try {
-        setSpeaking(JSON.parse(message.data));
-      } catch {
-        /* Ignore incomplete frames. */
-      }
-    });
     stream.onopen = () => setReconnecting(false);
     stream.onerror = () => setReconnecting(true);
     return () => stream.close();
@@ -81,14 +71,10 @@ function useCallEvents(task: Task) {
       )
     )
       combined.push(e);
-  return {
-    events: combined.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts)),
-    speaking,
-    reconnecting,
-  };
+  return { events: combined.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts)), reconnecting };
 }
 export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
-  const { events, speaking, reconnecting } = useCallEvents(task);
+  const { events, reconnecting } = useCallEvents(task);
   const [now, setNow] = useState(Date.now());
   const running = !['done', 'failed'].includes(task.status);
   useEffect(() => {
@@ -109,17 +95,13 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
   const streamed = events
     .filter((e) => e.kind === 'transcript_line')
     .map((e) => ({ speaker: e.payload.speaker || agent.name, text: e.payload.text || '' }));
-  const stored = streamed.length ? streamed : task.call?.transcript || [];
+  const transcript = streamed.length ? streamed : task.call?.transcript || [];
   const callLive =
     !DEMO &&
     running &&
     !!task.call &&
     !task.call.ended_at &&
     !events.some((e) => e.kind === 'ended');
-  // The turn being spoken goes last, until its stored line (which starts the same way) arrives.
-  const inProgress =
-    callLive && speaking && !stored.at(-1)?.text.startsWith(speaking.text) ? speaking : null;
-  const transcript = inProgress ? [...stored, inProgress] : stored;
   // While the call is live, keep the newest line in view as the conversation comes in.
   const lastLine = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -140,14 +122,27 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
           </small>
         </div>
         <span className={`status-chip ${task.status}`}>
-          {running && <span className="pulse-dot" />}
+          {running && task.status !== 'planning' && <span className="pulse-dot" />}
           {task.status === 'done' && <Check size={12} />}
           {labels[task.status]}
+          {task.status === 'planning' && (
+            <span className="thinking-dots" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
+          )}
         </span>
       </div>
-      {callLive && task.call && <HangUpButton callId={task.call.id} />}
+      {callLive && task.call && (
+        <>
+          <CallInProgress events={events} duration={duration} />
+          <HangUpButton callId={task.call.id} />
+        </>
+      )}
       {task.payment && <PaymentCard payment={task.payment} agentId={task.agent_id} />}
-      {task.call && (
+      {/* ElevenLabs only sends the transcript when a real call ends, so it's hidden while one is live. */}
+      {task.call && !callLive && (
         <details className="call-details" open={running}>
           <summary>
             <Radio size={15} />
@@ -172,7 +167,7 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
             {transcript.length ? (
               transcript.map((line, i) => (
                 <div
-                  className={`transcript-line ${line.speaker === agent.name ? 'agent-line' : ''} ${line === inProgress ? 'speaking-line' : ''}`}
+                  className={`transcript-line ${line.speaker === agent.name ? 'agent-line' : ''}`}
                   key={i}
                   ref={i === transcript.length - 1 ? lastLine : undefined}
                 >
@@ -210,6 +205,41 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
         </div>
       )}
       {!running && <BookingSummary task={task} />}
+    </div>
+  );
+}
+const BARS = 24;
+/** The live call: a ringing phone, where the call is up to, a timer, and a moving voice wave once answered. */
+function CallInProgress({ events, duration }: { events: CallEvent[]; duration: number }) {
+  const business = events
+    .find((e) => e.kind === 'dialing')
+    ?.payload.text?.replace(/^Calling\s*/, '');
+  const answered = events.some((e) => e.kind === 'answered');
+  const ringing = events.some((e) => e.kind === 'ringing');
+  const stage = answered
+    ? `On the call${business ? ` with ${business}` : ''}`
+    : ringing
+      ? 'Ringing…'
+      : `Calling${business ? ` ${business}` : ''}…`;
+  return (
+    <div className={`call-live ${answered ? 'answered' : ''}`} role="status">
+      <span className="call-live-phone">
+        <i />
+        <i />
+        <Phone size={20} />
+      </span>
+      <div className="call-live-text">
+        <strong>{stage}</strong>
+        <small>
+          {String(Math.floor(duration / 60)).padStart(2, '0')}:
+          {String(duration % 60).padStart(2, '0')} · The transcript appears when the call ends.
+        </small>
+      </div>
+      <span className="call-live-wave" aria-hidden="true">
+        {Array.from({ length: BARS }, (_, i) => (
+          <i key={i} style={{ animationDelay: `${-((i * 0.37) % 1.3).toFixed(2)}s` }} />
+        ))}
+      </span>
     </div>
   );
 }

@@ -670,6 +670,164 @@ legend {
     opacity: 0.3;
   }
 }
+/* "Thinking" with three dots that bounce in turn. */
+.thinking-dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 1px;
+}
+.thinking-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: thinking 1.2s infinite ease-in-out;
+}
+.thinking-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.thinking-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes thinking {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+/* A live call: the phone sends out rings, and the voice wave moves once someone answers. */
+.call-live {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 19px;
+  border-top: 1px solid #e6eadf;
+  background: linear-gradient(90deg, #fbf3ee, #f6f8f1);
+}
+.call-live-phone {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--accent);
+  animation: ring 1.6s infinite;
+}
+.call-live.answered .call-live-phone {
+  animation: none;
+}
+.call-live-phone svg {
+  position: relative;
+}
+.call-live-phone i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: ripple 2s infinite ease-out;
+}
+.call-live-phone i:nth-child(2) {
+  animation-delay: 1s;
+}
+.call-live-text {
+  flex: 1;
+  min-width: 0;
+}
+.call-live-text strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+  color: #3c4933;
+}
+.call-live-text small {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.call-live-wave {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 34px;
+}
+.call-live-wave i {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.35;
+  transform: scaleY(0.12);
+}
+.call-live.answered .call-live-wave i {
+  opacity: 0.85;
+  animation: wave 1.3s infinite ease-in-out;
+}
+@keyframes ripple {
+  from {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  to {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+@keyframes ring {
+  0%,
+  40%,
+  100% {
+    transform: rotate(0);
+  }
+  5%,
+  15%,
+  25% {
+    transform: rotate(-12deg);
+  }
+  10%,
+  20%,
+  30% {
+    transform: rotate(12deg);
+  }
+}
+@keyframes wave {
+  0%,
+  100% {
+    transform: scaleY(0.15);
+  }
+  25% {
+    transform: scaleY(0.9);
+  }
+  50% {
+    transform: scaleY(0.4);
+  }
+  75% {
+    transform: scaleY(0.7);
+  }
+}
+@media (max-width: 600px) {
+  .call-live-wave {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .call-live-phone,
+  .call-live-phone i,
+  .call-live-wave i,
+  .thinking-dots i {
+    animation: none !important;
+  }
+}
 .event-timeline {
   display: flex;
   flex-wrap: wrap;
@@ -717,9 +875,6 @@ legend {
 }
 .transcript-line.agent-line {
   border-left-color: #acbe94;
-}
-.transcript-line.speaking-line p {
-  color: var(--muted);
 }
 .transcript-line > span {
   font-size: 12px;

@@ -1,8 +1,7 @@
 """Turns ElevenLabs transcript turns into our lines.
 
-Shared by the post-call webhook (routers/webhooks.py) and the live transcript follower
-(services/live_transcript.py), so both count exactly the same lines: the webhook skips the ones the
-follower already wrote while the call was in progress.
+Used by the post-call webhook (routers/webhooks.py). ElevenLabs only gives an agent call's transcript
+once the call has ended, so there is no live transcript.
 """
 
 import re
