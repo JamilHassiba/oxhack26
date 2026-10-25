@@ -10,7 +10,6 @@ import hashlib
 import hmac
 import json
 import logging
-import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -22,13 +21,12 @@ from psycopg.types.json import Jsonb
 from app import db
 from app.config import get_settings
 from app.orchestrator.callbacks import on_call_finished
+from app.services.transcript import EMOTION_TAG, Line, transcript_lines  # noqa: F401 (EMOTION_TAG re-exported)
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhooks/elevenlabs", tags=["webhooks"])
 
 SIGNATURE_TOLERANCE_SECONDS = 30 * 60
-# Voice-model direction tags like "[happy]" or "[calm]" that the expressive voice adds to the agent's text.
-EMOTION_TAG = re.compile(r"\[[a-zA-Z ]+\]\s*")
 # ElevenLabs' call_initiation_failure reasons -> our `ended` reasons and calls.status.
 FAILURE_REASONS = {"no-answer": "no_answer", "busy": "busy"}
 ENDED_TEXT = {
@@ -61,13 +59,6 @@ def verify_signature(body: bytes, header: str | None, secret: str, now: float | 
 
 
 @dataclass
-class Line:
-    role: str  # "agent" or "user" (the business)
-    text: str
-    seconds: float  # into the call
-
-
-@dataclass
 class CallEnd:
     """What we keep from one ElevenLabs webhook."""
 
@@ -95,13 +86,7 @@ def parse_webhook(payload: dict[str, Any]) -> CallEnd | None:
     if kind != "post_call_transcription":
         return None
 
-    lines = []
-    for turn in data.get("transcript") or []:
-        text = turn.get("message") or ""
-        if turn.get("role") == "agent":
-            text = EMOTION_TAG.sub("", text)
-        if text.strip():
-            lines.append(Line(turn.get("role") or "user", text.strip(), float(turn.get("time_in_call_secs") or 0)))
+    lines = transcript_lines(data.get("transcript") or [])
     return CallEnd(
         call_id=call_id,
         conversation_id=data.get("conversation_id"),
@@ -113,8 +98,14 @@ def parse_webhook(payload: dict[str, Any]) -> CallEnd | None:
     )
 
 
-def event_rows(end: CallEnd, after: datetime, agent: str, contact: str) -> list[tuple[datetime, str, dict]]:
-    """The call's events at their real times in the call, each strictly after the previous one."""
+def event_rows(
+    end: CallEnd, after: datetime, agent: str, contact: str, skip_lines: int = 0, answered_already: bool = False
+) -> list[tuple[datetime, str, dict]]:
+    """The call's events at their real times in the call, each strictly after the previous one.
+
+    skip_lines / answered_already: the live transcript follower (services/live_transcript.py) already wrote
+    that many lines (and `answered`) during the call, so they aren't written twice.
+    """
     base = max(end.started_at or after, after)
     rows: list[tuple[datetime, str, dict]] = []
 
@@ -126,9 +117,9 @@ def event_rows(end: CallEnd, after: datetime, agent: str, contact: str) -> list[
             ts = after + timedelta(milliseconds=1)
         rows.append((ts, kind, payload))
 
-    if end.reason == "completed":
+    if end.reason == "completed" and not answered_already:
         add(0, "answered", {"text": "Connected"})
-    for line in end.lines:
+    for line in end.lines[skip_lines:]:
         speaker = agent if line.role == "agent" else contact
         add(line.seconds, "transcript_line", {"speaker": speaker, "text": line.text})
     add(end.duration_seconds, "ended", {
@@ -145,6 +136,8 @@ async def save_call_end(end: CallEnd) -> str | None:
                 """
                 SELECT c.id::text, c.ended_at,
                        (SELECT max(ts) FROM call_events WHERE call_id = c.id),
+                       (SELECT count(*) FROM call_events WHERE call_id = c.id AND kind = 'transcript_line'),
+                       EXISTS (SELECT 1 FROM call_events WHERE call_id = c.id AND kind = 'answered'),
                        a.name,
                        (SELECT name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1)
                 FROM calls c JOIN tasks t ON t.id = c.task_id JOIN agents a ON a.id = t.agent_id
@@ -157,7 +150,7 @@ async def save_call_end(end: CallEnd) -> str | None:
         if row is None:
             log.info("Post-call webhook for unknown call (conversation %s): ignored", end.conversation_id)
             return None
-        call_id, ended_at, last_event_at, agent, contact = row
+        call_id, ended_at, last_event_at, live_lines, answered, agent, contact = row
         if ended_at is not None:
             log.info("Post-call webhook for call %s, which already ended: ignored", call_id)
             return None
@@ -175,7 +168,7 @@ async def save_call_end(end: CallEnd) -> str | None:
             (CALL_STATUS.get(end.reason, end.reason), Jsonb(transcript), end.summary, end.conversation_id, call_id),
         )
         after = last_event_at or datetime.now(timezone.utc)
-        for ts, kind, payload in event_rows(end, after, agent, contact):
+        for ts, kind, payload in event_rows(end, after, agent, contact, live_lines, answered):
             await conn.execute(
                 "INSERT INTO call_events (ts, call_id, kind, payload) VALUES (%s, %s, %s, %s)",
                 (ts, call_id, kind, Jsonb(payload)),
