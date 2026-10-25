@@ -24,7 +24,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
         await db.close_pool()
 
-    app = FastAPI(title="Agent Concierge API", lifespan=lifespan)
+    app = FastAPI(title="Smart Connect API", lifespan=lifespan)
     app.state.settings = settings
     app.add_middleware(
         CORSMiddleware,

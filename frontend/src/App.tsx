@@ -35,11 +35,11 @@ export default function App() {
     <div className="app-shell">
       <div className="main-shell">
         <header className="topbar">
-          <Link to="/" className="brand brand-button" aria-label="concierge. Home">
+          <Link to="/" className="brand brand-button" aria-label="Smart Connect home">
             <span className="brand-mark">
               <Sparkles size={20} />
             </span>
-            concierge<span className="brand-dot">.</span>
+            Smart Connect
           </Link>
           {DEMO && (
             <span className="mode-badge">
@@ -260,7 +260,6 @@ function ChatRedirect() {
 function ChatPage() {
   const { agentId = '' } = useParams();
   const [params] = useSearchParams();
-  const navigate = useNavigate();
   const action = params.get('action');
   const agents = useAgents();
   const agent = agents.data?.find((a) => a.id === agentId);
@@ -308,30 +307,15 @@ function ChatPage() {
   }
   return (
     <div className="chat-page">
-      {/* Just the agent switcher: no name/status/tools block and no divider line. */}
+      {/* Just a way back to the agents: no name/status/tools block and no divider line. */}
       <div className="chat-top">
-        <select
-          aria-label="Choose agent"
-          value={agentId}
-          onChange={(e) => {
-            navigate(`/chat/${e.target.value}`);
-          }}
-        >
-          {agents.data?.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
+        <Link to="/" className="text-button">
+          <ChevronLeft size={18} /> Agents
+        </Link>
       </div>
       <div className="chat-layout">
         <section className="conversation" aria-label="Conversation">
           <div className="conversation-scroll">
-            {!list.length && !tasks.isPending && (
-              <div className="chat-welcome">
-                <h1>What can I help with?</h1>
-              </div>
-            )}
             {tasks.isPending && <Loading />}
             {tasks.isError && <ErrorNotice error={tasks.error} retry={() => tasks.refetch()} />}
             {list.map((task) => (
@@ -368,37 +352,20 @@ function ChatPage() {
                   submit(e);
                 }
               }}
-              placeholder={`Message ${agent.name}…`}
-              rows={2}
+              placeholder={active ? 'Task in progress…' : `Message ${agent.name}…`}
+              rows={1}
               maxLength={4000}
               disabled={active || send.isPending}
             />
-            <div className="composer-bottom">
-              {/* Only says something when it matters: why the box is locked. */}
-              <span>
-                {active && (
-                  <>
-                    <Sparkles size={13} /> Task in progress
-                  </>
-                )}
-              </span>
-              <button
-                className="send-button"
-                aria-label="Send message"
-                disabled={!message.trim() || active || send.isPending}
-              >
-                {send.isPending ? (
-                  <LoaderCircle size={18} className="spin" />
-                ) : (
-                  <>
-                    <span>Send</span>
-                    <ArrowUp size={18} />
-                  </>
-                )}
-              </button>
-            </div>
-            {send.isError && <ErrorNotice error={send.error} />}
+            <button
+              className="send-button"
+              aria-label="Send message"
+              disabled={!message.trim() || active || send.isPending}
+            >
+              {send.isPending ? <LoaderCircle size={18} className="spin" /> : <ArrowUp size={18} />}
+            </button>
           </form>
+          {send.isError && <ErrorNotice error={send.error} />}
           <div className="composer-note">
             <ShieldCheck size={12} />
             {DEMO
