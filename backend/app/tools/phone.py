@@ -14,7 +14,6 @@ from app import db
 from app.config import get_settings
 from app.contracts import CallBrief, TaskStatus
 from app.orchestrator import store
-from app.services import live_transcript
 from app.tools.base import Tool
 
 try:
@@ -74,7 +73,6 @@ def phone_tools(task: dict[str, Any]) -> list[Tool]:
         )
         call_id = await (start_call or stand_in_start_call)(brief)
         await store.set_task_status(task["id"], TaskStatus.CALLING)
-        live_transcript.start(call_id)  # real calls only: shows the conversation while it happens
         return {"status": "calling", "call_id": call_id, "business": brief.business_name}
 
     return [

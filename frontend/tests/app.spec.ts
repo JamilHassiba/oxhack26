@@ -30,7 +30,7 @@ test('booking, approval, persisted transcript, call result', async ({ page }) =>
   await page.goto('/chat/maya');
   await page.getByRole('textbox', { name: 'Message Maya' }).fill(BOOKING);
   await page.getByRole('button', { name: 'Send message' }).click();
-  await expect(page.getByText('Thinking it through', { exact: true })).toBeVisible();
+  await expect(page.getByText('Thinking', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Approve £20.00' })).toBeVisible({
     timeout: 15000,
   });
