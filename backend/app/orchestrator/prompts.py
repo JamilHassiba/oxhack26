@@ -29,11 +29,10 @@ def build_system_prompt(
         tools_line = f"Your tools for this task: {', '.join(tool_names)}. Do not call any other function."
         if "place_call" in tool_names:
             tools_line += (
-                "\n- To phone a business: call lookup_contact first, then place_call with its contact_id."
+                "\n- To phone a business: call place_call with the business's name as the user gave it."
                 " Put the details (party size, date and time, budget) in constraints and acceptable alternatives"
                 " (e.g. other times) in fallbacks. The call then happens in the background, so stop after place_call."
-                "\n- You can only call businesses in the contact list. If lookup_contact finds nothing, say so and"
-                " name the businesses you can call. Never ask for, or use, a phone number from the user."
+                "\n- You don't need a phone number: the call is connected for you. Never ask the user for one."
             )
         if "create_calendar_event" in tool_names:
             tools_line += (

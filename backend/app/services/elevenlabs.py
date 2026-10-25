@@ -46,20 +46,17 @@ async def start_call(brief: CallBrief) -> str:
 
         return await stand_in_start_call(brief)
 
-    allowed = {n.strip() for n in settings.call_allowlist.split(",") if n.strip()}
-    if allowed and brief.to_number not in allowed:
-        raise CallFailed(f"{brief.to_number} is not on CALL_ALLOWLIST, so no call was made.")
-
     async with db.get_pool().connection() as conn, conn.transaction():
         row = await (
             await conn.execute(
-                "INSERT INTO calls (task_id, to_number, status) VALUES (%s, %s, 'dialing') RETURNING id",
-                (brief.task_id, brief.to_number),
+                "INSERT INTO calls (task_id, to_number, business_name, status) VALUES (%s, %s, %s, 'dialing') RETURNING id",
+                (brief.task_id, brief.to_number, brief.business_name or None),
             )
         ).fetchone()
         assert row is not None  # INSERT ... RETURNING always returns the new row
         call_id = str(row[0])
-        await events.emit(call_id, "dialing", {"text": "Calling", "to_number": brief.to_number}, conn)
+        text = f"Calling {brief.business_name}" if brief.business_name else "Calling"
+        await events.emit(call_id, "dialing", {"text": text, "to_number": brief.to_number}, conn)
 
     try:
         result = await _place_outbound_call(settings, brief, call_id)

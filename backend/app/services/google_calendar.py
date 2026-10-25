@@ -49,13 +49,12 @@ async def add_event(event: dict[str, Any], task: dict[str, Any]) -> str:
 
 
 async def booking_details(task_id: str) -> dict[str, Any]:
-    """The newest call's outcome and the business's number, plus the task's latest deposit."""
+    """The newest call's outcome and business name, plus the task's latest deposit."""
     async with db.get_pool().connection() as conn:
         cur = conn.cursor(row_factory=dict_row)
         await cur.execute(
             """
-            SELECT c.outcome, c.to_number AS phone,
-                   (SELECT name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1) AS contact_name,
+            SELECT c.outcome, c.business_name,
                    (SELECT row_to_json(p) FROM (SELECT amount, currency, status FROM payments
                                                 WHERE task_id = c.task_id ORDER BY created_at DESC LIMIT 1) p
                    ) AS payment
@@ -69,7 +68,7 @@ async def booking_details(task_id: str) -> dict[str, Any]:
 def event_body(event: dict[str, Any], task: dict[str, Any], details: dict[str, Any]) -> dict[str, Any]:
     outcome = details.get("outcome") or {}
     payment = details.get("payment")
-    venue = outcome.get("venue") or details.get("contact_name")
+    venue = outcome.get("venue") or details.get("business_name")
 
     lines = []
     if outcome.get("booking_name"):
@@ -83,8 +82,6 @@ def event_body(event: dict[str, Any], task: dict[str, Any], details: dict[str, A
         lines.append(f"Deposit: £{outcome['deposit_amount_pence'] / 100:.2f} (still to pay)")
     elif outcome:
         lines.append("Deposit: none")
-    if venue and details.get("phone"):
-        lines.append(f"{venue}: {details['phone']}")
     lines.append("")
     lines.append(f"Booked by {task['agent_name']}, your AI concierge, on a phone call.")
     if outcome.get("reason"):

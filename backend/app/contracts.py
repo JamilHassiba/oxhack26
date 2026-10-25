@@ -21,12 +21,13 @@ class CallBrief:
     """What the voice agent needs for one call. Built by the orchestrator from the user's request."""
 
     task_id: str  # so start_call can create the calls row linked to the task
-    to_number: str  # E.164, e.g. "+447700900123"; must be on CALL_ALLOWLIST unless toggled
+    to_number: str  # E.164, e.g. "+447700900123": always CALL_NUMBER
     goal: str  # "Book a table for 4 at Dishoom tonight at 18:00"
     user_name: str  # "I'm an AI assistant calling on behalf of <user_name>"
     agent_name: str
     constraints: list[str] = field(default_factory=list)  # ["party of 4", "deposit up to £20 is fine"]
     fallbacks: list[str] = field(default_factory=list)  # ["17:30", "18:30"] if the goal time is unavailable
+    business_name: str = ""  # "Dishoom", as the user named it; saved on the call for labels and summaries
 
 
 class TaskStatus(StrEnum):

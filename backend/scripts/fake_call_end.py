@@ -62,7 +62,7 @@ async def main(call_id: str, scenario: str) -> None:
                                 WHERE call_id = c.id AND kind = 'dialing' ORDER BY ts LIMIT 1),
                                t.goal),
                            u.name, a.name,
-                           (SELECT name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1)
+                           c.business_name
                     FROM calls c JOIN tasks t ON t.id = c.task_id
                     JOIN agents a ON a.id = t.agent_id JOIN users u ON u.id = a.user_id
                     WHERE c.id = %s

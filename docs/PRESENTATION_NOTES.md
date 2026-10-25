@@ -39,8 +39,7 @@ holds the phone conversation, following a brief Gemini wrote.
 
 | Tool | Does | Detail worth mentioning |
 |---|---|---|
-| `lookup_contact` | Finds a business by name | Returns a contact ID, **never the phone number** |
-| `place_call` | Starts the call | Our code looks the number up itself, builds the brief, calls Jamil's `start_call`, max **2 calls per task** |
+| `place_call` | Starts the call | Gemini gives the business's name; every call rings the one configured `CALL_NUMBER` (the prototype's "restaurant" phone), max **2 calls per task** |
 | `create_calendar_event` | Adds to the calendar | Gemini gives UK clock time; our code attaches the timezone (it got the 25 Oct clock change wrong) |
 | `send_email` | Confirmation email | Recipient is always the user |
 
@@ -81,8 +80,8 @@ aggregate** over it (refreshed every 5 min + real-time), behind the Analytics pa
   apart also means Gemini's mistakes can't reach the person on the phone directly.
 - **Why manual function calling?** Control: we log every call, return errors to the model, enforce limits (max 2
   calls) and pause a task mid-way for a phone call that can take minutes.
-- **How do you stop it calling random numbers?** Gemini never sees or types numbers; it picks from saved contacts
-  and the server looks the number up. (A `CALL_ALLOWLIST` can restrict further — not set on the live server.)
+- **How do you stop it calling random numbers?** Gemini never sees or types numbers: in this prototype every call
+  rings one configured number (`CALL_NUMBER`). A real product would look up the business's number instead.
 - **How do you stop it spending money?** Every payment needs your click; Stripe test keys only; idempotency keys.
 - **What if Gemini makes something up?** The prompt forbids reporting what a tool didn't return; call facts go
   through a strict JSON schema; retry / done / failed decisions are made in code from that JSON.

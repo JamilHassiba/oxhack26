@@ -41,8 +41,7 @@ def world(monkeypatch):
             "transcript": [{"speaker": "restaurant", "text": "Booked!"}],
             "status": "ended",
             "outcome": None,
-            "contact_id": "contact-1",
-            "contact_name": "The Ivy Oxford",
+            "business_name": "The Ivy Oxford",
         },
         "task": {
             "id": "task-1",
@@ -206,8 +205,8 @@ def phone(monkeypatch):
 
     placed = []
 
-    async def place_call(contact_id, goal, **_):
-        placed.append((contact_id, goal))
+    async def place_call(business_name, goal, **_):
+        placed.append((business_name, goal))
         return {"status": "calling", "call_id": "call-2"}
 
     tool = Tool("place_call", "Call.", {"type": "object"}, place_call, ends_turn=True)
@@ -231,13 +230,13 @@ def offered(monkeypatch, world):
 def test_fully_booked_can_call_back_for_offered_time(monkeypatch, world, phone):
     world["task"]["goal"] = "Book The Ivy for 4 tomorrow at 6pm, or later if that's full"
     world["call"]["outcome"] = FULL
-    client = gemini(monkeypatch, model_says(call("place_call", contact_id="contact-1", goal="Book 4 at 20:30")))
+    client = gemini(monkeypatch, model_says(call("place_call", business_name="The Ivy Oxford", goal="Book 4 at 20:30")))
 
     asyncio.run(callbacks.on_call_finished("call-1"))
 
-    assert phone == [("contact-1", "Book 4 at 20:30")]
+    assert phone == [("The Ivy Oxford", "Book 4 at 20:30")]
     assert world["finished"] == []  # still calling; on_call_finished runs again when call 2 ends
-    assert 'contact_id "contact-1"' in client.requests[0][0].parts[0].text
+    assert 'business_name "The Ivy Oxford"' in client.requests[0][0].parts[0].text
 
 
 @pytest.mark.parametrize("outcome", [NO_ANSWER, FULL])
@@ -264,5 +263,5 @@ def test_no_call_back_after_voicemail_or_booking(monkeypatch, world, phone, outc
 
     asyncio.run(callbacks.on_call_finished("call-1"))
 
-    assert "place_call" not in names and "lookup_contact" not in names
+    assert "place_call" not in names
     assert phone == []

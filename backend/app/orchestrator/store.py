@@ -92,33 +92,6 @@ async def set_task_status(task_id: str, status: TaskStatus) -> None:
         await conn.execute("UPDATE tasks SET status = %s, updated_at = now() WHERE id = %s", (status, task_id))
 
 
-async def find_contacts(query: str, limit: int = 5) -> list[dict[str, Any]]:
-    """Contacts whose name contains `query` (case-insensitive). Phone numbers are left out on purpose."""
-    async with db.get_pool().connection() as conn:
-        cur = conn.cursor(row_factory=dict_row)
-        await cur.execute(
-            "SELECT id::text AS contact_id, name, notes FROM contacts WHERE name ILIKE %s ORDER BY name LIMIT %s",
-            (f"%{query.strip()}%", limit),
-        )
-        return await cur.fetchall()
-
-
-async def list_contact_names() -> list[str]:
-    async with db.get_pool().connection() as conn:
-        return [row[0] for row in await (await conn.execute("SELECT name FROM contacts ORDER BY name")).fetchall()]
-
-
-async def get_contact(contact_id: str) -> dict[str, Any] | None:
-    try:
-        UUID(contact_id)
-    except ValueError:
-        return None
-    async with db.get_pool().connection() as conn:
-        cur = conn.cursor(row_factory=dict_row)
-        await cur.execute("SELECT id::text AS id, name, phone FROM contacts WHERE id = %s", (contact_id,))
-        return await cur.fetchone()
-
-
 async def count_calls(task_id: str) -> int:
     async with db.get_pool().connection() as conn:
         (n,) = await (await conn.execute("SELECT count(*) FROM calls WHERE task_id = %s", (task_id,))).fetchone()
@@ -126,18 +99,14 @@ async def count_calls(task_id: str) -> int:
 
 
 async def load_call(call_id: str) -> dict[str, Any]:
-    """The call row Jamil's webhook filled in, plus the name of the contact that was called."""
+    """The call row Jamil's webhook filled in, plus the name of the business that was called."""
     async with db.get_pool().connection() as conn:
         cur = conn.cursor(row_factory=dict_row)
         await cur.execute(
             """
             SELECT c.id::text AS id, c.task_id::text AS task_id, c.to_number, c.status,
-                   c.transcript, c.summary, c.outcome,
-                   ct.id::text AS contact_id, ct.name AS contact_name
+                   c.transcript, c.summary, c.outcome, c.business_name
             FROM calls c
-            LEFT JOIN LATERAL (
-                SELECT id, name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1
-            ) ct ON true
             WHERE c.id = %s
             """,
             (call_id,),
@@ -287,7 +256,7 @@ async def request_payment(call_id: str, amount: int, currency: str, description:
         await cur.execute(
             """
             SELECT c.id::text AS call_id, t.id::text AS task_id, t.status, a.tools,
-                   (SELECT name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1) AS merchant
+                   c.business_name AS merchant
             FROM calls c JOIN tasks t ON t.id = c.task_id JOIN agents a ON a.id = t.agent_id
             WHERE c.id = %s FOR UPDATE OF c
             """,

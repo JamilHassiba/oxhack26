@@ -1,7 +1,5 @@
 import asyncio
 
-import pytest
-
 from app.config import Settings
 from app.contracts import CallBrief
 from app.services import elevenlabs
@@ -46,10 +44,3 @@ def test_without_api_key_falls_back_to_practice_run(monkeypatch):
     monkeypatch.setattr("app.tools.phone.stand_in_start_call", stand_in)
     assert asyncio.run(elevenlabs.start_call(BRIEF)) == "practice-call"
     assert seen == [BRIEF]
-
-
-def test_allowlist_blocks_other_numbers(monkeypatch):
-    settings = Settings(elevenlabs_api_key="key", call_allowlist="+447000000000, +447111111111")
-    monkeypatch.setattr(elevenlabs, "get_settings", lambda: settings)
-    with pytest.raises(elevenlabs.CallFailed, match="not on CALL_ALLOWLIST"):
-        asyncio.run(elevenlabs.start_call(BRIEF))

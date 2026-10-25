@@ -139,7 +139,7 @@ async def save_call_end(end: CallEnd) -> str | None:
                        (SELECT count(*) FROM call_events WHERE call_id = c.id AND kind = 'transcript_line'),
                        EXISTS (SELECT 1 FROM call_events WHERE call_id = c.id AND kind = 'answered'),
                        a.name,
-                       (SELECT name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1)
+                       c.business_name
                 FROM calls c JOIN tasks t ON t.id = c.task_id JOIN agents a ON a.id = t.agent_id
                 WHERE c.id::text = %s OR c.el_conversation_id = %s
                 FOR UPDATE OF c

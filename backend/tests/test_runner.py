@@ -92,8 +92,8 @@ def test_only_permitted_tools_are_declared(monkeypatch):
     assert runner.tools_for({**TASK, "tools": ["phone", "payments"]}) == [phone]
 
 
-def test_phone_permission_gives_both_call_tools():
-    assert [t.name for t in runner.tools_for(TASK)] == ["lookup_contact", "place_call"]
+def test_phone_permission_gives_the_call_tool():
+    assert [t.name for t in runner.tools_for(TASK)] == ["place_call"]
 
 
 def test_prompt_says_which_tools_exist():

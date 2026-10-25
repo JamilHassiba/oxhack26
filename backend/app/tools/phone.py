@@ -1,7 +1,8 @@
 """`place_call` tool: wraps Jamil's start_call. Owner: Alex.
 
-Also `lookup_contact`, so Gemini can find who to call. Gemini only ever sees contact ids, never phone
-numbers: place_call looks the number up itself, so the model can't dial a number it made up.
+Every call rings the one configured CALL_NUMBER (the person playing the business in the demo), whatever
+business the user names. Gemini only passes the business's name, which is saved on the call so the
+transcript, summary and calendar use it. Gemini never chooses a phone number.
 """
 
 import logging
@@ -10,6 +11,7 @@ from typing import Any
 from psycopg.types.json import Jsonb
 
 from app import db
+from app.config import get_settings
 from app.contracts import CallBrief, TaskStatus
 from app.orchestrator import store
 from app.services import live_transcript
@@ -31,7 +33,8 @@ async def stand_in_start_call(brief: CallBrief) -> str:
     async with db.get_pool().connection() as conn, conn.transaction():
         (call_id,) = await (
             await conn.execute(
-                "INSERT INTO calls (task_id, to_number) VALUES (%s, %s) RETURNING id", (brief.task_id, brief.to_number)
+                "INSERT INTO calls (task_id, to_number, business_name) VALUES (%s, %s, %s) RETURNING id",
+                (brief.task_id, brief.to_number, brief.business_name or None),
             )
         ).fetchone()
         await conn.execute(
@@ -48,56 +51,43 @@ async def stand_in_start_call(brief: CallBrief) -> str:
 def phone_tools(task: dict[str, Any]) -> list[Tool]:
     """Tools for one task: task_id, user and agent are bound here, never chosen by Gemini."""
 
-    async def lookup_contact(name: str) -> dict:
-        matches = await store.find_contacts(name)
-        if matches:
-            return {"found": True, "contacts": matches}
-        return {"found": False, "known_contacts": await store.list_contact_names()}
-
     async def place_call(
-        contact_id: str, goal: str, constraints: list[str] | None = None, fallbacks: list[str] | None = None
+        business_name: str, goal: str, constraints: list[str] | None = None, fallbacks: list[str] | None = None
     ) -> dict:
-        contact = await store.get_contact(contact_id)
-        if contact is None:
-            return {"error": "Unknown contact_id. Use lookup_contact first and pass its contact_id."}
+        number = get_settings().call_number
+        if not number:
+            return {"error": "No phone number is configured (CALL_NUMBER), so calls are switched off."}
+        if not business_name.strip():
+            return {"error": "Give the name of the business to call."}
         if await store.count_calls(task["id"]) >= MAX_CALLS_PER_TASK:
             return {"error": f"This task has already made {MAX_CALLS_PER_TASK} calls. No more calls are allowed."}
 
         brief = CallBrief(
             task_id=task["id"],
-            to_number=contact["phone"],
+            to_number=number,
             goal=goal,
             user_name=task["user_name"],
             agent_name=task["agent_name"],
             constraints=list(constraints or []),
             fallbacks=list(fallbacks or []),
+            business_name=business_name.strip(),
         )
         call_id = await (start_call or stand_in_start_call)(brief)
         await store.set_task_status(task["id"], TaskStatus.CALLING)
         live_transcript.start(call_id)  # real calls only: shows the conversation while it happens
-        return {"status": "calling", "call_id": call_id, "contact": contact["name"]}
+        return {"status": "calling", "call_id": call_id, "business": brief.business_name}
 
     return [
         Tool(
-            name="lookup_contact",
-            description="Find a business to call by name (e.g. a restaurant). Returns matching contacts with their contact_id.",
-            parameters={
-                "type": "object",
-                "properties": {"name": {"type": "string", "description": "Business name or part of it, e.g. 'Ivy'."}},
-                "required": ["name"],
-            },
-            handler=lookup_contact,
-        ),
-        Tool(
             name="place_call",
             description=(
-                "Phone a contact. A voice agent makes the call in the background; you get the result later, "
-                "so stop after calling this."
+                "Phone a business (e.g. a restaurant). A voice agent makes the call in the background; you get "
+                "the result later, so stop after calling this."
             ),
             parameters={
                 "type": "object",
                 "properties": {
-                    "contact_id": {"type": "string", "description": "contact_id from lookup_contact."},
+                    "business_name": {"type": "string", "description": "The business to call, e.g. 'Dishoom'."},
                     "goal": {
                         "type": "string",
                         "description": "What the call must achieve, e.g. 'Book a table for 4 tomorrow at 18:00'.",
@@ -113,7 +103,7 @@ def phone_tools(task: dict[str, Any]) -> list[Tool]:
                         "description": "Acceptable alternatives if the goal isn't possible, e.g. ['17:30', '18:30'].",
                     },
                 },
-                "required": ["contact_id", "goal"],
+                "required": ["business_name", "goal"],
             },
             handler=place_call,
             ends_turn=True,

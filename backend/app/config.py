@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     elevenlabs_agent_id: str = ""
     elevenlabs_phone_number_id: str = ""
     elevenlabs_webhook_secret: str = ""
-    call_allowlist: str = ""  # comma-separated E.164 numbers; empty = any number from the contacts table
+    call_number: str = ""  # E.164: every call rings this phone, whatever business the user names
     # The Twilio account behind the ElevenLabs phone number. Only used by the Hang up button.
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""

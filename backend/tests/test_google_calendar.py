@@ -24,8 +24,7 @@ DETAILS = {
         "deposit_amount_pence": 2000,
         "reason": "Table for 2 confirmed at 19:00 with a £20 deposit.",
     },
-    "phone": "+441865000000",
-    "contact_name": "The Ivy Oxford",
+    "business_name": "The Ivy Oxford",
     "payment": {"amount": 2000, "currency": "GBP", "status": "paid"},
 }
 CONNECTED = Settings(_env_file=None, google_service_account_file="key.json", google_calendar_id="alex@gmail.com")
@@ -42,7 +41,6 @@ def test_event_has_the_booking_details():
         "Name on booking: Alex",
         "Party size: 2",
         "Deposit: £20.00 (paid)",
-        "The Ivy Oxford: +441865000000",
         "",
         "Booked by Maya, your AI concierge, on a phone call.",
         "Table for 2 confirmed at 19:00 with a £20 deposit.",

@@ -52,13 +52,11 @@ async def on_call_finished(call_id: str) -> None:
         can_call_again = (
             not outcome.get("booked")
             and outcome.get("result") in RETRYABLE
-            and call["contact_id"] is not None
+            and call["business_name"] is not None
             and len(earlier) + 1 < MAX_CALLS_PER_TASK
         )
-        # lookup_contact isn't needed (same contact); place_call only when a second call is allowed.
-        tools = [
-            t for t in tools_for(task) if t.name != "lookup_contact" and (t.name != "place_call" or can_call_again)
-        ]
+        # place_call only when a second call is allowed.
+        tools = [t for t in tools_for(task) if t.name != "place_call" or can_call_again]
         message = wrap_up_message(task, call, outcome, payments, earlier, can_call_again)
         result = await run_tool_loop(
             client,
@@ -92,11 +90,11 @@ def wrap_up_message(
     earlier: list[dict[str, Any]],
     can_call_again: bool,
 ) -> str:
-    who = call["contact_name"] or "the business"
+    who = call["business_name"] or "the business"
     paid = [f"£{p['amount'] / 100:.2f} to {p['merchant'] or who}: {p['status']}" for p in payments]
     before = [(c["outcome"] or {}).get("reason") or c["status"] for c in earlier]
     if can_call_again:
-        next_call = f"""- It wasn't booked, and you may call {who} once more (place_call with contact_id "{call["contact_id"]}"):
+        next_call = f"""- It wasn't booked, and you may call {who} once more (place_call with business_name "{who}"):
   - If they offered another time that fits what the user asked for (for example the user gave a range, said "or later", or listed alternatives), call again to book exactly that time: put the offered time in the goal, e.g. "Book a table for 4 tomorrow at 20:30". If the user only gave one time, don't call: tell them which time was offered.
   - If nobody answered, call once more with the same goal.
   - Otherwise don't call again.

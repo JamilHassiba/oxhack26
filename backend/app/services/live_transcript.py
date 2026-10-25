@@ -66,7 +66,7 @@ async def write_new_lines(call_id: str, lines: list[Line]) -> bool:
             await conn.execute(
                 """
                 SELECT c.ended_at, a.name,
-                       (SELECT name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1),
+                       c.business_name,
                        (SELECT count(*) FROM call_events WHERE call_id = c.id AND kind = 'transcript_line'),
                        EXISTS (SELECT 1 FROM call_events WHERE call_id = c.id AND kind = 'answered')
                 FROM calls c JOIN tasks t ON t.id = c.task_id JOIN agents a ON a.id = t.agent_id
