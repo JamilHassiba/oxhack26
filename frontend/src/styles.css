@@ -703,6 +703,7 @@ legend {
 }
 /* A live call: the phone sends out rings, and the voice wave moves once someone answers. */
 .call-live {
+  overflow: hidden; /* the phone's rings fade out inside the panel */
   display: flex;
   align-items: center;
   gap: 16px;
@@ -779,7 +780,7 @@ legend {
     opacity: 0.6;
   }
   to {
-    transform: scale(1.9);
+    transform: scale(1.45);
     opacity: 0;
   }
 }
@@ -947,7 +948,7 @@ legend {
   border-color: #c9765c;
 }
 .hang-up {
-  padding: 0 17px 17px;
+  padding: 14px 17px 17px;
 }
 .payment-actions {
   display: flex;

@@ -13,7 +13,7 @@ import httpx
 from app import db
 from app.config import get_settings
 from app.contracts import CallBrief
-from app.services import events, hang_up
+from app.services import call_status, events, hang_up
 
 log = logging.getLogger(__name__)
 
@@ -70,6 +70,7 @@ async def start_call(brief: CallBrief) -> str:
             "UPDATE calls SET el_conversation_id = %s WHERE id = %s", (result.get("conversation_id"), call_id)
         )
     hang_up.remember(call_id, result.get("callSid"))  # lets the website's Hang up button end the call
+    call_status.start(call_id, result.get("callSid"))  # ringing / answered on the website
     return call_id
 
 
