@@ -9,7 +9,7 @@ from datetime import datetime
 from html import escape
 from typing import Any
 
-ACCENT = "#a34125"
+ACCENT = "#4351c4"
 PAYMENT_STATUS = {
     "pending_approval": "Awaiting your approval",
     "approved": "Approved",
@@ -51,22 +51,22 @@ def booking_rows(details: dict[str, Any]) -> list[tuple[str, str]]:
 
 def render(*, subject: str, body: str, agent_name: str, details: dict[str, Any]) -> str:
     rows = "".join(
-        f'<tr><td style="padding:10px 0;color:#6b7563;border-top:1px solid #e3e8dc;width:38%">{escape(label)}</td>'
-        f'<td style="padding:10px 0;color:#1f2a17;border-top:1px solid #e3e8dc;font-weight:600">{escape(value)}</td></tr>'
+        f'<tr><td style="padding:10px 0;color:#63636b;border-top:1px solid #e4e4e7;width:38%">{escape(label)}</td>'
+        f'<td style="padding:10px 0;color:#18181b;border-top:1px solid #e4e4e7;font-weight:600">{escape(value)}</td></tr>'
         for label, value in booking_rows(details)
     )
     message = "".join(f'<p style="margin:0 0 12px">{escape(p)}</p>' for p in body.split("\n\n") if p.strip())
     return f"""<!doctype html>
-<html><body style="margin:0;padding:24px 12px;background:#f5f6f1;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1f2a17">
-<div style="max-width:520px;margin:0 auto;background:#fff;border:1px solid #d8dfcc;border-radius:12px;overflow:hidden">
+<html><body style="margin:0;padding:24px 12px;background:#f7f7f8;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#18181b">
+<div style="max-width:520px;margin:0 auto;background:#fff;border:1px solid #e4e4e7;border-radius:12px;overflow:hidden">
   <div style="padding:20px 24px;background:{ACCENT};color:#fff">
-    <div style="font-size:13px;opacity:.85">concierge.</div>
+    <div style="font-size:13px;opacity:.85">Smart Connect</div>
     <div style="font-size:20px;font-weight:700;margin-top:4px">{escape(subject)}</div>
   </div>
   <div style="padding:20px 24px">
     <div style="font-size:15px;line-height:1.5">{message}</div>
     {f'<table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:8px">{rows}</table>' if rows else ""}  </div>
-  <div style="padding:14px 24px;background:#f0f3ea;font-size:12px;color:#6b7563">
+  <div style="padding:14px 24px;background:#f4f4f5;font-size:12px;color:#63636b">
     Booked for you by {escape(agent_name)}, your AI concierge, on a phone call.
   </div>
 </div>

@@ -16,14 +16,14 @@
   border-radius: 5px;
   color: var(--muted);
   font-size: 12px;
-  background: #f4f6ef;
+  background: #f4f4f5;
   list-style: none;
 }
 .agent-actions-menu > summary::-webkit-details-marker {
   display: none;
 }
 .agent-actions-menu > summary:hover {
-  background: #e9efdf;
+  background: #ececef;
 }
 .agent-actions-popover {
   position: absolute;
@@ -34,7 +34,7 @@
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 25px #24331918;
+  box-shadow: 0 8px 25px #0f0f1218;
 }
 .agent-actions-popover > button {
   display: flex;
@@ -43,16 +43,16 @@
   width: 100%;
   padding: 12px;
   font-size: 13px;
-  color: #384c2a;
+  color: #3f3f46;
   background: #fff;
   border-radius: 4px;
   text-align: left;
 }
 .agent-actions-popover > button:hover {
-  background: #f0f4e8;
+  background: #f4f4f5;
 }
 .agent-actions-popover .danger-text {
-  color: #96381d;
+  color: #b42318;
 }
 .danger-button {
   display: inline-flex;
@@ -61,14 +61,14 @@
   gap: 8px;
   min-height: 44px;
   padding: 11px 16px;
-  background: #96381d;
+  background: #b42318;
   color: #fff;
   border-radius: 7px;
   font-size: 14px;
   font-weight: 600;
 }
 .danger-button:hover:not(:disabled) {
-  background: #7b2d17;
+  background: #912018;
 }
 .dialog-actions {
   display: flex;
