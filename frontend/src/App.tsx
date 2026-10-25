@@ -260,7 +260,6 @@ function ChatRedirect() {
 function ChatPage() {
   const { agentId = '' } = useParams();
   const [params] = useSearchParams();
-  const navigate = useNavigate();
   const action = params.get('action');
   const agents = useAgents();
   const agent = agents.data?.find((a) => a.id === agentId);
@@ -308,30 +307,15 @@ function ChatPage() {
   }
   return (
     <div className="chat-page">
-      {/* Just the agent switcher: no name/status/tools block and no divider line. */}
+      {/* Just a way back to the agents: no name/status/tools block and no divider line. */}
       <div className="chat-top">
-        <select
-          aria-label="Choose agent"
-          value={agentId}
-          onChange={(e) => {
-            navigate(`/chat/${e.target.value}`);
-          }}
-        >
-          {agents.data?.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
+        <Link to="/" className="text-button">
+          <ChevronLeft size={18} /> Agents
+        </Link>
       </div>
       <div className="chat-layout">
         <section className="conversation" aria-label="Conversation">
           <div className="conversation-scroll">
-            {!list.length && !tasks.isPending && (
-              <div className="chat-welcome">
-                <h1>What can I help with?</h1>
-              </div>
-            )}
             {tasks.isPending && <Loading />}
             {tasks.isError && <ErrorNotice error={tasks.error} retry={() => tasks.refetch()} />}
             {list.map((task) => (
