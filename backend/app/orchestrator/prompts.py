@@ -30,8 +30,8 @@ def build_system_prompt(
         if "place_call" in tool_names:
             tools_line += (
                 "\n- To phone a business: call place_call with the business's name as the user gave it."
-                " Put the details (party size, date and time, budget) in constraints and acceptable alternatives"
-                " (e.g. other times) in fallbacks. The call then happens in the background, so stop after place_call."
+                " Put the details (how many people, budget, requirements) in constraints and only the alternatives"
+                " the user allowed in fallbacks. The call then happens in the background, so stop after place_call."
                 "\n- You don't need a phone number: the call is connected for you. Never ask the user for one."
             )
         if "create_calendar_event" in tool_names:

@@ -81,26 +81,41 @@ def phone_tools(task: dict[str, Any]) -> list[Tool]:
         Tool(
             name="place_call",
             description=(
-                "Phone a business (e.g. a restaurant). A voice agent makes the call in the background; you get "
-                "the result later, so stop after calling this."
+                "Phone a business (a restaurant, salon, shop, surgery...). A voice agent makes the call in the "
+                "background; you get the result later, so stop after calling this."
             ),
             parameters={
                 "type": "object",
                 "properties": {
-                    "business_name": {"type": "string", "description": "The business to call, e.g. 'Dishoom'."},
+                    "business_name": {
+                        "type": "string",
+                        "description": "The business to call, as the user named it, e.g. 'Dishoom' or 'Smile Dental'.",
+                    },
                     "goal": {
                         "type": "string",
-                        "description": "What the call must achieve, e.g. 'Book a table for 4 tomorrow at 18:00'.",
+                        "description": (
+                            "What the call must achieve, spoken by the voice agent right after \"I'm calling to\". "
+                            "Start with a verb, include the day, write times the way people say them (6pm, half "
+                            "past ten), and leave alternatives out (they go in fallbacks). E.g. 'book a haircut for "
+                            "Saturday at 10am', 'move my appointment to next Tuesday afternoon', 'ask if they have "
+                            "the blue jacket in medium'."
+                        ),
                     },
                     "constraints": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Details and limits, e.g. ['party of 4', 'deposit up to £20 is fine'].",
+                        "description": (
+                            "Details and limits the voice agent must respect, e.g. ['for 2 people', 'name Jamil', "
+                            "'up to £30'] or ['must be after 5pm']."
+                        ),
                     },
                     "fallbacks": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Acceptable alternatives if the goal isn't possible, e.g. ['17:30', '18:30'].",
+                        "description": (
+                            "Acceptable alternatives, in order, if the goal isn't possible, e.g. ['Sunday at 10am', "
+                            "'Saturday at 2pm']. Only what the user allowed; empty if they gave none."
+                        ),
                     },
                 },
                 "required": ["business_name", "goal"],
