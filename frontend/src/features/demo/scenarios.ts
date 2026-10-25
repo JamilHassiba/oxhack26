@@ -32,3 +32,12 @@ export type DemoScenario = keyof typeof scenarios;
 export function isDemoScenario(value: unknown): value is DemoScenario {
   return typeof value === 'string' && Object.hasOwn(scenarios, value);
 }
+/** There is no scenario picker: typing a scenario's exact prompt plays that scenario; otherwise
+ * "no answer" or "fail" plays an unanswered call and anything else a successful booking. */
+export function scenarioFor(goal: string): DemoScenario {
+  const text = goal.trim();
+  const match = (Object.keys(scenarios) as DemoScenario[]).find(
+    (id) => scenarios[id].prompt === text,
+  );
+  return match ?? (/\b(fail|no answer)\b/i.test(text) ? 'no_answer' : 'success');
+}

@@ -184,34 +184,6 @@
   font-size: 12px;
   margin-bottom: 18px;
 }
-.demo-scenario {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 4px 14px;
-  padding: 10px 0 13px;
-}
-.demo-scenario > label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #425837;
-}
-.demo-scenario > select {
-  width: 100%;
-  max-width: 280px;
-  justify-self: end;
-  margin: 0;
-  padding: 8px 10px;
-  font-size: 12px;
-}
-.demo-scenario > small {
-  grid-column: 1 / -1;
-  font-size: 11px;
-  color: var(--muted);
-}
-.conversation:has(.demo-scenario) .conversation-scroll {
-  height: calc(100dvh - 429px);
-}
 @media (max-width: 1000px) {
   .history-filters {
     grid-template-columns: 1fr 1fr;
@@ -260,11 +232,5 @@
   }
   .task-detail-page .page-heading h1 {
     font-size: 23px;
-  }
-  .conversation:has(.demo-scenario) .conversation-scroll {
-    height: calc(100dvh - 522px);
-  }
-  .demo-scenario > select {
-    max-width: 210px;
   }
 }

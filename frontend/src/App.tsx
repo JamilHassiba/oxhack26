@@ -36,8 +36,6 @@ import { AgentEditor } from './features/agents/AgentEditor';
 import type { Agent, CalendarEvent, Tool } from './types';
 import { AgentActions } from './features/agents/AgentActions';
 import { HistoryPage, TaskDetailPage } from './features/history/HistoryPage';
-import { ScenarioPicker } from './features/demo/ScenarioPicker';
-import { scenarios, type DemoScenario } from './features/demo/scenarios';
 export default function App() {
   // No sidebar: the logo is the one way home, the home page is the agents page, and chats are
   // entered from there. History, calendar, payments and analytics still work by URL.
@@ -290,8 +288,6 @@ function ChatPage() {
   const tasks = useTasks(agentId);
   const client = useQueryClient();
   const [message, setMessage] = useState('');
-  const [scenario, setScenario] = useState<DemoScenario | undefined>();
-  useEffect(() => setScenario(undefined), [agentId]);
   const composer = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const shortcut = shortcuts[action as keyof typeof shortcuts];
@@ -302,7 +298,7 @@ function ChatPage() {
   }, [agentId, action, agent?.id]);
   const bottom = useRef<HTMLDivElement>(null);
   const send = useMutation({
-    mutationFn: (text: string) => api.send(agentId, text, { scenario }),
+    mutationFn: (text: string) => api.send(agentId, text),
     onSuccess: () => {
       setMessage('');
       client.invalidateQueries({ queryKey: ['tasks', agentId] });
@@ -396,17 +392,6 @@ function ChatPage() {
             ))}
             <div ref={bottom} />
           </div>
-          {DEMO && agent.tools.includes('phone') && (
-            <ScenarioPicker
-              value={scenario || 'success'}
-              disabled={active || send.isPending}
-              onChange={(value) => {
-                setScenario(value);
-                setMessage(scenarios[value].prompt);
-                composer.current?.focus();
-              }}
-            />
-          )}
           <form className="composer" onSubmit={submit}>
             <label className="sr-only" htmlFor="message">
               Message {agent.name}

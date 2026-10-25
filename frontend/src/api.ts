@@ -2,7 +2,6 @@ import { demo } from './demo';
 import type { Agent, AgentInput, Analytics, CalendarEvent, Task, Tool } from './types';
 import type { HistoryEntry, TaskHistory } from './history-types';
 import { isActive, previousAgent } from './history-types';
-import type { DemoScenario } from './features/demo/scenarios';
 import { archivedHistory, archiveHistory, archivePersistent } from './history-archive';
 export const DEMO = import.meta.env.VITE_DEMO_MODE !== 'false';
 export const BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
@@ -24,7 +23,6 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json();
 }
 const knownAgents = new Map<string, Agent>();
-export type SendOptions = { scenario?: DemoScenario };
 export const api = {
   agents: async (): Promise<Agent[]> => {
     const agents = DEMO ? await demo.agents() : await request<Agent[]>('/agents');
@@ -87,9 +85,8 @@ export const api = {
     DEMO
       ? Promise.all((await demo.tasks(agentId)).map((t) => demo.task(t.id)))
       : request(`/agents/${encodeURIComponent(agentId)}/tasks`),
-  send: async (agentId: string, message: string, options: SendOptions = {}) => {
-    if (DEMO) return demo.send(agentId, message, options.scenario);
-    // Demo metadata is intentionally excluded from the wire payload.
+  send: async (agentId: string, message: string) => {
+    if (DEMO) return demo.send(agentId, message);
     const result = await request<{ task_id: string }>(
       `/agents/${encodeURIComponent(agentId)}/chat`,
       { method: 'POST', body: JSON.stringify({ message }) },

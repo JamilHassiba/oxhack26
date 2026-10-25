@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-// The chat has no shortcut boxes and there is no sidebar: tests type requests and visit pages directly.
+import { scenarios } from '../src/features/demo/scenarios';
+// No shortcut boxes, sidebar or scenario picker: tests type requests (a scenario's prompt plays that
+// demo scenario) and visit pages directly.
 const BOOKING =
   'Book a table for 4 at The Ivy Oxford tomorrow at 6pm. They may ask for a £20 deposit.';
 test('create an agent with explicit tool permissions', async ({ page }) => {
@@ -178,7 +180,7 @@ test('history searches transcripts, filters tasks, and opens a direct task view'
   page,
 }) => {
   await page.goto('/chat/maya');
-  await page.getByLabel('Demo scenario').selectOption('alternative_time');
+  await page.getByRole('textbox', { name: 'Message Maya' }).fill(scenarios.alternative_time.prompt);
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('All taken care of.', { exact: true })).toBeVisible({
     timeout: 15000,
@@ -204,13 +206,13 @@ test('fully booked and no-answer scenarios fail cleanly and unlock the composer'
   page,
 }) => {
   await page.goto('/chat/maya');
-  await page.getByLabel('Demo scenario').selectOption('fully_booked');
+  await page.getByRole('textbox', { name: 'Message Maya' }).fill(scenarios.fully_booked.prompt);
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(
     page.getByText('The restaurant is fully booked. No reservation or payment was made.'),
   ).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole('button', { name: 'Approve £20.00' })).toHaveCount(0);
-  await page.getByLabel('Demo scenario').selectOption('no_answer');
+  await page.getByRole('textbox', { name: 'Message Maya' }).fill(scenarios.no_answer.prompt);
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(
     page.getByText('The restaurant did not answer. Try again or choose another restaurant.'),
@@ -219,7 +221,7 @@ test('fully booked and no-answer scenarios fail cleanly and unlock the composer'
 });
 test('active tasks block deletion until the deposit is declined', async ({ page }) => {
   await page.goto('/chat/maya');
-  await page.getByLabel('Demo scenario').selectOption('declined_deposit');
+  await page.getByRole('textbox', { name: 'Message Maya' }).fill(scenarios.declined_deposit.prompt);
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByRole('button', { name: 'Decline', exact: true })).toBeVisible({
     timeout: 15000,

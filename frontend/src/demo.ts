@@ -1,7 +1,7 @@
 import type { Agent, AgentInput, Analytics, CalendarEvent, Task, Tool } from './types';
 import type { HistoryEntry, TaskHistory } from './history-types';
 import { isActive, previousAgent } from './history-types';
-import { isDemoScenario, type DemoScenario } from './features/demo/scenarios';
+import { isDemoScenario, scenarioFor, type DemoScenario } from './features/demo/scenarios';
 const key = 'concierge-demo-v1';
 const presets: Agent[] = [
   {
@@ -52,7 +52,7 @@ function save() {
 }
 function run(task: Task): Run {
   return (state().runs[task.id] ||= {
-    scenario: /\b(fail|no answer)\b/i.test(task.goal) ? 'no_answer' : 'success',
+    scenario: scenarioFor(task.goal),
     agent: structuredClone(
       state().agents.find((a) => a.id === task.agent_id) || previousAgent(task.agent_id),
     ),
@@ -248,7 +248,7 @@ export const demo = {
     if (!goal.trim()) throw new Error('Enter a request.');
     if (state().tasks.some((t) => t.agent_id === agentId && isActive(advance(t))))
       throw new Error('Finish the current task before starting another.');
-    const selected = scenario ?? (/\b(fail|no answer)\b/i.test(goal) ? 'no_answer' : 'success');
+    const selected = scenario ?? scenarioFor(goal);
     if (!isDemoScenario(selected)) throw new Error('Unknown demo scenario.');
     const task: Task = {
       id: crypto.randomUUID(),
