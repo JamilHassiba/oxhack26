@@ -15,6 +15,8 @@ class EvanSettings(BaseSettings):
     database_url: SecretStr = SecretStr("")
     resend_api_key: SecretStr = SecretStr("")
     email_from: str = ""
+    # Optional: send every confirmation here instead of the task owner's saved address (one-user demo).
+    email_to: str = ""
 
 
 @lru_cache

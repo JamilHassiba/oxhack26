@@ -37,7 +37,7 @@ async def send_email(*, task_id: str, subject: str, body: str, html: str | None 
     async with connection() as conn:
         repo = Repository(conn)
         owner = await repo.tool_owner(task_uuid, "email")
-        recipient = owner["email"]
+        recipient = settings.email_to or owner["email"]
         if (
             not recipient
             or "@" not in recipient
