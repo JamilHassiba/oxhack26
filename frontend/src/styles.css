@@ -1010,7 +1010,7 @@ legend {
 }
 .summary p {
   font-size: 14px;
-  color: #3f3f46;
+  color: #1f1f23; /* darker so the summary sentence reads clearly on the pale blue */
   line-height: 1.75;
   margin-top: 7px;
 }
