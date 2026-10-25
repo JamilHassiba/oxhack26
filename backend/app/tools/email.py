@@ -10,8 +10,8 @@ from app.evan.repository import Repository
 from app.evan.settings import get_settings
 
 
-async def send_email(*, task_id: str, subject: str, body: str) -> dict:
-    """Send one plain-text confirmation via Resend. Same-task retries are idempotent."""
+async def send_email(*, task_id: str, subject: str, body: str, html: str | None = None) -> dict:
+    """Send one confirmation via Resend (plain text, plus an HTML version when given). Same-task retries are idempotent."""
     task_uuid = UUID(task_id)
     if (
         not subject.strip()
@@ -51,6 +51,8 @@ async def send_email(*, task_id: str, subject: str, body: str) -> dict:
             "subject": subject.strip(),
             "text": body,
         }
+        if html:
+            payload["html"] = html
         fingerprint = hashlib.sha256(
             json.dumps(payload, sort_keys=True).encode()
         ).hexdigest()

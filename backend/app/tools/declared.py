@@ -3,14 +3,16 @@
 task_id is bound here, never chosen by Gemini. The calendar is the user's Google Calendar (services/google_calendar.py).
 """
 
+import logging
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from app.services import google_calendar
+from app.services import confirmation_email, google_calendar
 from app.tools.base import Tool
 from app.tools.email import send_email
 
+log = logging.getLogger(__name__)
 UK = ZoneInfo("Europe/London")
 
 
@@ -54,7 +56,14 @@ def calendar_tools(task: dict[str, Any]) -> list[Tool]:
 
 def email_tools(task: dict[str, Any]) -> list[Tool]:
     async def email_user(subject: str, body: str) -> dict:
-        return await send_email(task_id=task["id"], subject=subject, body=body)
+        # Styled version with the booking facts from the call; the plain text stays as Gemini wrote it.
+        try:
+            details = await google_calendar.booking_details(task["id"])
+            html = confirmation_email.render(subject=subject, body=body, agent_name=task["agent_name"], details=details)
+        except Exception:
+            log.exception("Building the HTML email for task %s failed; sending plain text", task["id"])
+            html = None
+        return await send_email(task_id=task["id"], subject=subject, body=body, html=html)
 
     return [
         Tool(
