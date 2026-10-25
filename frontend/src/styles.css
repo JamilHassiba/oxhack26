@@ -998,7 +998,7 @@ legend {
   gap: 12px;
   padding: 19px;
   border-top: 1px solid #e4e4e7;
-  color: #2f3a91;
+  color: #1c2566; /* "All taken care of." heading and its icon: deep navy, easy to read on the pale blue */
   background: #eef0fb;
 }
 .summary > span {
