@@ -24,6 +24,11 @@ OUTCOME_SCHEMA = {
             "description": "Confirmed UK local date and time, e.g. 2026-10-25T18:00. Null if nothing was confirmed.",
         },
         "party_size": {"type": ["integer", "null"]},
+        "booking_name": {
+            "type": ["string", "null"],
+            "description": "The name the booking is under, as said on the call. Null if none was given.",
+        },
+        "venue": {"type": ["string", "null"], "description": "The business that was called, e.g. 'The Ivy Oxford'."},
         "deposit_required": {"type": "boolean"},
         "deposit_amount_pence": {
             "type": ["integer", "null"],
@@ -40,8 +45,8 @@ OUTCOME_SCHEMA = {
         },
     },
     "required": [
-        "result", "booked", "starts_at", "party_size", "deposit_required", "deposit_amount_pence", "offered_times",
-        "reason",
+        "result", "booked", "starts_at", "party_size", "booking_name", "venue", "deposit_required",
+        "deposit_amount_pence", "offered_times", "reason",
     ],
 }
 

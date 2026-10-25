@@ -59,12 +59,29 @@ class TranscriptLine(BaseModel):
     text: str
 
 
+class CallOutcome(BaseModel):
+    """What Gemini extracted from the call (orchestrator/outcome.py); drives the booking summary table.
+    Every field is optional: older calls were extracted before booking_name/venue existed."""
+
+    result: str | None = None  # booked | fully_booked | no_answer | voicemail | declined | other
+    booked: bool | None = None
+    starts_at: str | None = None  # UK wall-clock time, e.g. "2026-10-26T18:30" (no offset)
+    party_size: int | None = None
+    booking_name: str | None = None
+    venue: str | None = None
+    deposit_required: bool | None = None
+    deposit_amount_pence: int | None = None
+    offered_times: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+
 class Call(BaseModel):
     id: str
     status: str
     started_at: AwareDatetime
     ended_at: AwareDatetime | None = None
     transcript: list[TranscriptLine] = Field(default_factory=list)
+    outcome: CallOutcome | None = None
 
 
 class Payment(BaseModel):
