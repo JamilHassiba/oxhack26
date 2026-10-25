@@ -124,7 +124,6 @@ function AgentsPage() {
     <div className="page agent-selection-page">
       <PageHeading
         title="Your agents"
-        description="Create an agent, choose what it can do, then start a chat."
         action={
           // With no agents the empty state has its own Create agent button; one is enough.
           agents.length > 0 && (
@@ -171,9 +170,6 @@ function AgentsPage() {
             <div className="selected-agent-identity">
               <Avatar agent={agent} />
               <h2>{agent.name}</h2>
-              <span className="agent-role">
-                {agent.tools.includes('phone') ? 'Everyday concierge' : 'Personal assistant'}
-              </span>
             </div>
             <fieldset className="agent-permissions" disabled={enter.isPending}>
               <legend>Allowed tools</legend>
@@ -218,10 +214,6 @@ function AgentsPage() {
               )}
             </button>
             {enter.isError && <ErrorNotice error={enter.error} />}
-            <details className="agent-details">
-              <summary>Agent instructions</summary>
-              <p>{agent.persona}</p>
-            </details>
           </article>
           <button
             className="agent-arrow next"
@@ -231,9 +223,6 @@ function AgentsPage() {
           >
             <ChevronRight size={25} />
           </button>
-          <p className="agent-position" aria-live="polite">
-            Agent {index + 1} of {agents.length}
-          </p>
         </section>
       ) : (
         <div className="home-empty">
