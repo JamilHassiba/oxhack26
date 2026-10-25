@@ -93,8 +93,8 @@ def phone_tools(task: dict[str, Any]) -> list[Tool]:
                     "goal": {
                         "type": "string",
                         "description": (
-                            "What the call should achieve, with days and times as the user said them, e.g. 'book a "
-                            "table for 2 tomorrow at 7pm'."
+                            "What the call should achieve, with days and times as the user said them (never the year), "
+                            "e.g. 'book a table for 2 tomorrow at 7pm'."
                         ),
                     },
                     "constraints": {

@@ -128,24 +128,6 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
         </span>
       </div>
       {callLive && task.call && <HangUpButton callId={task.call.id} />}
-      {task.summary && (
-        <div className={`summary ${task.status === 'failed' ? 'summary-error' : ''}`}>
-          <span>
-            {task.status === 'failed' ? <CircleHelp size={18} /> : <CheckCheck size={18} />}
-          </span>
-          <div>
-            <strong>
-              {task.status === 'failed'
-                ? 'Let’s try another way'
-                : task.payment?.status === 'denied'
-                  ? 'Your decision, respected.'
-                  : 'All taken care of.'}
-            </strong>
-            <p>{task.summary}</p>
-            {task.status === 'failed' && <small>Send a new message below to try again.</small>}
-          </div>
-        </div>
-      )}
       {task.payment && <PaymentCard payment={task.payment} agentId={task.agent_id} />}
       {task.call && (
         <details className="call-details" open={running}>
@@ -190,6 +172,24 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
             )}
           </div>
         </details>
+      )}
+      {task.summary && (
+        <div className={`summary ${task.status === 'failed' ? 'summary-error' : ''}`}>
+          <span>
+            {task.status === 'failed' ? <CircleHelp size={18} /> : <CheckCheck size={18} />}
+          </span>
+          <div>
+            <strong>
+              {task.status === 'failed'
+                ? 'Let’s try another way'
+                : task.payment?.status === 'denied'
+                  ? 'Your decision, respected.'
+                  : 'All taken care of.'}
+            </strong>
+            <p>{task.summary}</p>
+            {task.status === 'failed' && <small>Send a new message below to try again.</small>}
+          </div>
+        </div>
       )}
       {!running && <BookingSummary task={task} />}
     </div>

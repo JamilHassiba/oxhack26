@@ -29,8 +29,8 @@ def dynamic_variables(brief: CallBrief, call_id: str) -> dict[str, str]:
     return {
         "agent_name": brief.agent_name,
         "user_name": brief.user_name,
-        # Spoken after "I'm calling to ...", so it must read as an action.
-        "goal": brief.goal[:1].lower() + brief.goal[1:],
+        # Spoken after "I'm calling to ..." and followed by a full stop, so it must read as an action.
+        "goal": brief.goal[:1].lower() + brief.goal[1:].rstrip(" ."),
         "constraints": ", ".join(brief.constraints) or "none",
         "fallbacks": ", ".join(brief.fallbacks) or "none",
         # Not used by the prompt; comes back in the post-call webhook so we can find the call.

@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import replace
 
 from app.config import Settings
 from app.contracts import CallBrief
@@ -25,6 +26,13 @@ def test_dynamic_variables_fill_the_agent_prompt():
         "fallbacks": "17:30, 18:30",
         "call_id": "call-1",
     }
+
+
+
+def test_goal_drops_its_full_stop():
+    # The first message already ends the sentence: "I'm calling to {{goal}}."
+    brief = replace(BRIEF, goal="Book a haircut tomorrow at 5pm.")
+    assert elevenlabs.dynamic_variables(brief, "c")["goal"] == "book a haircut tomorrow at 5pm"
 
 
 def test_empty_lists_read_as_none():
