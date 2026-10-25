@@ -2,58 +2,9 @@ from uuid import uuid4
 import httpx
 import pytest
 from fastapi import HTTPException
-from pydantic import ValidationError
-from app.tools.calendar import create_calendar_event
 from app.tools.email import send_email
 from app.evan.settings import EvanSettings
 from test_api import create, seed_task
-
-
-@pytest.mark.asyncio
-async def test_calendar_idempotence_permissions_and_export(client, database):
-    agent = create(client)
-    task = seed_task(database, agent["id"])
-    args = dict(
-        task_id=task,
-        title="Dinner, friends; café 🍽" * 7,
-        starts_at="2026-10-25T18:00:00+00:00",
-        ends_at="2026-10-25T19:30:00+00:00",
-        location="Oxford\nSecond line",
-    )
-    first = await create_calendar_event(**args)
-    assert await create_calendar_event(**args) == first
-    with pytest.raises(HTTPException) as conflict:
-        await create_calendar_event(**{**args, "title": "Different plan"})
-    assert conflict.value.status_code == 409
-    assert len(client.get("/calendar").json()) == 1
-    feed = client.get("/calendar.ics")
-    assert feed.headers["content-disposition"].endswith('"concierge.ics"')
-    assert "DTSTART:20261025T180000Z" in feed.text
-    assert all(len(line.encode()) <= 75 for line in feed.text.split("\r\n"))
-    assert "LOCATION:Oxford\\nSecond line" in feed.text
-    assert client.get("/tasks/" + task).json()["calendar_event"]["id"] == first["id"]
-    client.patch("/agents/" + agent["id"], json={"tools": []})
-    with pytest.raises(HTTPException) as denied:
-        await create_calendar_event(**args)
-    assert denied.value.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_calendar_rejects_naive_or_reversed_dates():
-    with pytest.raises(ValidationError):
-        await create_calendar_event(
-            task_id=str(uuid4()),
-            title="Dinner",
-            starts_at="2026-10-25T18:00",
-            ends_at="2026-10-25T19:00",
-        )
-    with pytest.raises(ValidationError):
-        await create_calendar_event(
-            task_id=str(uuid4()),
-            title="Dinner",
-            starts_at="2026-10-25T19:00Z",
-            ends_at="2026-10-25T18:00Z",
-        )
 
 
 @pytest.mark.asyncio

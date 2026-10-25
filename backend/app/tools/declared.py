@@ -1,6 +1,6 @@
-"""Gemini declarations for Evan's calendar and email functions: he writes them, we declare them. Owner: Alex.
+"""Gemini declarations for the calendar and email functions. Owner: Alex.
 
-task_id is bound here, never chosen by Gemini. Evan's functions check the agent's permission themselves too.
+task_id is bound here, never chosen by Gemini. The calendar is the user's Google Calendar (services/google_calendar.py).
 """
 
 from datetime import datetime
@@ -9,7 +9,6 @@ from zoneinfo import ZoneInfo
 
 from app.services import google_calendar
 from app.tools.base import Tool
-from app.tools.calendar import create_calendar_event
 from app.tools.email import send_email
 
 UK = ZoneInfo("Europe/London")
@@ -22,11 +21,17 @@ def uk_time(value: str) -> str:
 
 def calendar_tools(task: dict[str, Any]) -> list[Tool]:
     async def add_event(title: str, starts_at: str, ends_at: str, location: str = "") -> dict:
-        event = await create_calendar_event(
-            task_id=task["id"], title=title, starts_at=uk_time(starts_at), ends_at=uk_time(ends_at), location=location
-        )
-        # "added", "not_connected" or "failed": Gemini only says it's in Google Calendar when it is.
-        return {**event, "google_calendar": await google_calendar.add_event(event, task)}
+        starts_at, ends_at = uk_time(starts_at), uk_time(ends_at)
+        if datetime.fromisoformat(ends_at) <= datetime.fromisoformat(starts_at):
+            return {"error": "The event must end after it starts."}
+        # The task id as the event id: one event per task, so a retry can't add it twice.
+        event = {"id": task["id"], "title": title, "starts_at": starts_at, "ends_at": ends_at, "location": location}
+        result = await google_calendar.add_event(event, task)
+        if result == "not_connected":
+            return {"error": "Google Calendar isn't connected, so the event wasn't added."}
+        if result == "failed":
+            return {"error": "Adding the event to Google Calendar failed."}
+        return {"added": True, **event}
 
     return [
         Tool(

@@ -53,7 +53,6 @@ def database(monkeypatch):
         return psycopg.connect(url, options=options)
 
     # Tools use the same isolated test schema; HTTP providers are mocked separately.
-    monkeypatch.setattr("app.tools.calendar.connection", connection)
     monkeypatch.setattr("app.tools.email.connection", connection)
     yield connection, sync
     with psycopg.connect(url, autocommit=True) as conn:

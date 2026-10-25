@@ -1,6 +1,6 @@
 // Provisional contract from docs/DESIGN.md §4–5. Generate openapi.d.ts once FastAPI lands.
 export type Tool = 'phone' | 'email' | 'calendar' | 'payments';
-export type Agent = { id: string; name: string; voice: string; tools: Tool[] };
+export type Agent = { id: string; name: string; tools: Tool[] };
 export type AgentInput = Omit<Agent, 'id'>;
 export type TaskStatus = 'planning' | 'calling' | 'awaiting_approval' | 'done' | 'failed';
 export type CallEvent = {
@@ -17,20 +17,12 @@ export type Payment = {
   merchant?: string;
   status: 'pending_approval' | 'approved' | 'paid' | 'denied';
 };
-export type CalendarEvent = {
-  id: string;
-  task_id: string;
-  title: string;
-  starts_at: string;
-  ends_at: string;
-  location: string;
-};
 export type CallOutcome = {
   result?: string | null;
   booked?: boolean | null;
   /** UK wall-clock time without an offset, e.g. "2026-10-26T18:30". */
   starts_at?: string | null;
-  party_size?: number | null;
+  details?: string | null;
   booking_name?: string | null;
   venue?: string | null;
   deposit_required?: boolean | null;
@@ -55,7 +47,6 @@ export type Task = {
     outcome?: CallOutcome | null;
   };
   payment?: Payment;
-  calendar_event?: CalendarEvent;
   events: CallEvent[];
 };
 export type Message = {

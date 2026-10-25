@@ -2,10 +2,10 @@
 
 Uses a Google service account (a robot Google account) that the user has shared their calendar with
 ("Make changes to events"), so there is no sign-in screen. The event's description is filled in from the
-call's outcome and the task's payments: name on booking, party size, deposit, the business's number.
+call's outcome and the task's payments: name, details and deposit.
 
 Without GOOGLE_SERVICE_ACCOUNT_FILE and GOOGLE_CALENDAR_ID it does nothing. A Google failure never fails
-the booking: the event is still in our own calendar, and Gemini is told it didn't reach Google.
+the booking: Gemini is told the event wasn't added.
 """
 
 import asyncio
@@ -73,8 +73,8 @@ def event_body(event: dict[str, Any], task: dict[str, Any], details: dict[str, A
     lines = []
     if outcome.get("booking_name"):
         lines.append(f"Name on booking: {outcome['booking_name']}")
-    if outcome.get("party_size"):
-        lines.append(f"Party size: {outcome['party_size']}")
+    if outcome.get("details"):
+        lines.append(f"Details: {outcome['details']}")
     if payment:
         status = {"paid": "paid", "denied": "declined", "pending_approval": "waiting for your approval"}
         lines.append(f"Deposit: £{payment['amount'] / 100:.2f} ({status.get(payment['status'], payment['status'])})")
@@ -88,7 +88,7 @@ def event_body(event: dict[str, Any], task: dict[str, Any], details: dict[str, A
         lines.append(outcome["reason"])
 
     return {
-        # Our event id (a uuid without dashes is a valid Google id), so a retry can't add it twice.
+        # A uuid without dashes is a valid Google id; the same id twice is rejected, so a retry can't add it twice.
         "id": str(event["id"]).replace("-", ""),
         "summary": event["title"],
         "location": event.get("location") or venue or "",

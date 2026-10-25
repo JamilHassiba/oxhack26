@@ -92,40 +92,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/calendar': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List Calendar */
-    get: operations['list_calendar_calendar_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/calendar.ics': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Download Calendar */
-    get: operations['download_calendar_calendar_ics_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/agents/{agent_id}/chat': {
     parameters: {
       query?: never;
@@ -177,6 +143,26 @@ export interface paths {
     put?: never;
     /** Deny Payment */
     post: operations['deny_payment_payments__payment_id__deny_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/calls/{call_id}/hang-up': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Hang Up Call
+     * @description Ends a live call. The `ended` event follows on the call's event stream once the phone line closes.
+     */
+    post: operations['hang_up_call_calls__call_id__hang_up_post'];
     delete?: never;
     options?: never;
     head?: never;
@@ -259,8 +245,6 @@ export interface components {
     Agent: {
       /** Name */
       name: string;
-      /** Voice */
-      voice: string;
       /** Tools */
       tools: ('phone' | 'email' | 'calendar' | 'payments')[];
       /** Id */
@@ -270,8 +254,6 @@ export interface components {
     AgentInput: {
       /** Name */
       name: string;
-      /** Voice */
-      voice: string;
       /** Tools */
       tools: ('phone' | 'email' | 'calendar' | 'payments')[];
     };
@@ -279,8 +261,6 @@ export interface components {
     AgentPatch: {
       /** Name */
       name?: string | null;
-      /** Voice */
-      voice?: string | null;
       /** Tools */
       tools?: ('phone' | 'email' | 'calendar' | 'payments')[] | null;
     };
@@ -308,27 +288,6 @@ export interface components {
       calls_by_day: components['schemas']['DayCalls'][];
       /** Agents */
       agents: components['schemas']['AgentStats'][];
-    };
-    /** CalendarEvent */
-    CalendarEvent: {
-      /** Id */
-      id: string;
-      /** Task Id */
-      task_id: string;
-      /** Title */
-      title: string;
-      /**
-       * Starts At
-       * Format: date-time
-       */
-      starts_at: string;
-      /**
-       * Ends At
-       * Format: date-time
-       */
-      ends_at: string;
-      /** Location */
-      location: string;
     };
     /** Call */
     Call: {
@@ -367,7 +326,7 @@ export interface components {
     /**
      * CallOutcome
      * @description What Gemini extracted from the call (orchestrator/outcome.py); drives the booking summary table.
-     *     Every field is optional: older calls were extracted before booking_name/venue existed.
+     *     Every field is optional: older calls were extracted before some fields existed.
      */
     CallOutcome: {
       /** Result */
@@ -376,8 +335,8 @@ export interface components {
       booked?: boolean | null;
       /** Starts At */
       starts_at?: string | null;
-      /** Party Size */
-      party_size?: number | null;
+      /** Details */
+      details?: string | null;
       /** Booking Name */
       booking_name?: string | null;
       /** Venue */
@@ -500,7 +459,6 @@ export interface components {
       created_at: string;
       call?: components['schemas']['Call'] | null;
       payment?: components['schemas']['Payment'] | null;
-      calendar_event?: components['schemas']['CalendarEvent'] | null;
       /** Events */
       events?: components['schemas']['CallEvent'][];
     };
@@ -763,46 +721,6 @@ export interface operations {
       };
     };
   };
-  list_calendar_calendar_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CalendarEvent'][];
-        };
-      };
-    };
-  };
-  download_calendar_calendar_ics_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Download an RFC 5545 calendar attachment */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'text/calendar': string;
-        };
-      };
-    };
-  };
   chat_agents__agent_id__chat_post: {
     parameters: {
       query?: never;
@@ -887,6 +805,39 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['Payment'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  hang_up_call_calls__call_id__hang_up_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        call_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
         };
       };
       /** @description Validation Error */

@@ -31,7 +31,7 @@ def create_app(settings=None):
         return {
             "status": "ok",
             "db": status,
-            "scope": "agents/tasks/calendar; chat and voice pending shared app integration",
+            "scope": "agents/tasks; chat and voice pending shared app integration",
         }
 
     return app

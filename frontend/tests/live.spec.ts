@@ -3,7 +3,6 @@ import type { Agent, Task } from '../src/types';
 const agent: Agent = {
   id: 'backend-maya',
   name: 'Maya',
-  voice: 'Warm',
   tools: ['phone', 'payments', 'calendar'],
 };
 const finished = (id = 'previous'): Task => ({
@@ -218,9 +217,7 @@ test('history loads server tasks on a fresh browser and preserves partial result
   await page.reload();
   await expect(page.getByText('Reservation confirmed by backend.')).toBeVisible();
 });
-test('profile update failure keeps the form, then saves and duplicates independently', async ({
-  page,
-}) => {
+test('profile update failure keeps the form, then saves', async ({ page }) => {
   const state = await backend(page);
   state.failPatch = true;
   await page.goto('/');
@@ -233,14 +230,7 @@ test('profile update failure keeps the form, then saves and duplicates independe
   state.failPatch = false;
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('heading', { name: 'Maya edited', exact: true })).toBeVisible();
-  await page.getByLabel('Manage agent').click();
-  await page.getByRole('button', { name: 'Duplicate agent', exact: true }).click();
-  await page
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Duplicate agent', exact: true })
-    .click();
-  await expect(page.getByRole('heading', { name: 'Maya edited copy', exact: true })).toBeVisible();
-  expect(state.agents).toHaveLength(2);
+  expect(state.agents[0].name).toBe('Maya edited');
 });
 test('server deletion conflict is handled and a later delete preserves archived history', async ({
   page,

@@ -12,7 +12,7 @@ BOOKED = {
     "result": "booked",
     "booked": True,
     "starts_at": "2026-10-25T18:00:00+00:00",
-    "party_size": 4,
+    "details": "table for 4",
     "deposit_required": False,
     "deposit_amount_pence": None,
     "offered_times": [],
@@ -26,7 +26,7 @@ FULL = {
     "offered_times": ["2026-10-25T20:30"],
     "reason": "Fully booked at 18:00; 20:30 offered.",
 }
-NO_ANSWER = {**FULL, "result": "no_answer", "offered_times": [], "party_size": None, "reason": "Nobody answered."}
+NO_ANSWER = {**FULL, "result": "no_answer", "offered_times": [], "details": None, "reason": "Nobody answered."}
 VOICEMAIL = {**NO_ANSWER, "result": "voicemail", "reason": "Went to voicemail."}
 
 
@@ -82,14 +82,14 @@ def world(monkeypatch):
             raise w["extract"]
         return w["extract"]
 
-    async def create_calendar_event(**kwargs):
-        w["calendar"].append(kwargs)
-        return {"id": "event-1", **kwargs}
+    async def add_event(event, task):
+        w["calendar"].append(event)
+        return "added"
 
     for fn in (load_call, load_task, save_call_outcome, finish_task, task_payments, earlier_calls):
         monkeypatch.setattr(store, fn.__name__, fn)
     monkeypatch.setattr(callbacks, "extract_outcome", extract_outcome)
-    monkeypatch.setattr(declared, "create_calendar_event", create_calendar_event)
+    monkeypatch.setattr(declared.google_calendar, "add_event", add_event)
     return w
 
 
@@ -116,7 +116,7 @@ def test_booked_call_adds_calendar_event_and_finishes(monkeypatch, world):
     asyncio.run(callbacks.on_call_finished("call-1"))
 
     assert world["saved_outcome"] == BOOKED
-    assert world["calendar"][0]["task_id"] == "task-1"  # bound by us, not chosen by Gemini
+    assert world["calendar"][0]["id"] == "task-1"  # bound by us, not chosen by Gemini
     assert world["finished"] == [
         ("task-1", TaskStatus.DONE, "Booked The Ivy for 4 at 18:00 and added it to your calendar.")
     ]
@@ -264,3 +264,14 @@ def test_no_call_back_after_voicemail_or_booking(monkeypatch, world, phone, outc
 
     assert "place_call" not in names
     assert phone == []
+
+
+def test_calendar_tool_says_when_google_calendar_is_not_connected(monkeypatch, world):
+    async def not_connected(event, task):
+        return "not_connected"
+
+    monkeypatch.setattr(declared.google_calendar, "add_event", not_connected)
+    tool = declared.calendar_tools(world["task"])[0]
+    result = asyncio.run(tool.handler(title="Dinner", starts_at="2026-10-25T18:00", ends_at="2026-10-25T19:30"))
+
+    assert "isn't connected" in result["error"]

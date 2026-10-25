@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     # Google Calendar: a service account's JSON key file, and the calendar shared with it (usually your Gmail
-    # address). Both empty = events stay in our own calendar only.
+    # address). Both empty = the calendar tool can't add events.
     google_service_account_file: str = ""
     google_calendar_id: str = ""
 

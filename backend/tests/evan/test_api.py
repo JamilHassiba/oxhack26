@@ -5,7 +5,6 @@ from psycopg.types.json import Jsonb
 
 CONFIG = {
     "name": "Maya",
-    "voice": "Warm & natural",
     "tools": ["phone", "email", "calendar", "payments"],
 }
 
@@ -28,7 +27,7 @@ def seed_task(database, agent_id, status="done"):
 
 def test_agent_crud_validation_and_archive(client, database):
     agent = create(client)
-    assert set(agent) == {"id", "name", "voice", "tools"}
+    assert set(agent) == {"id", "name", "tools"}
     assert client.get("/agents").json() == [agent]
     assert client.get("/agents/" + agent["id"]).json() == agent
     response = client.patch(

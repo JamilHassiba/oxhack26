@@ -18,7 +18,7 @@ const base: Task = {
   },
 };
 
-describe('booking summary rows', () => {
+describe('call result rows', () => {
   it('shows the booking from the call outcome, in UK time', () => {
     const rows = bookingRows({
       ...base,
@@ -27,7 +27,7 @@ describe('booking summary rows', () => {
         outcome: {
           booked: true,
           starts_at: '2026-10-26T18:30',
-          party_size: 4,
+          details: 'table for 4',
           booking_name: 'Alex',
           venue: 'The Ivy Oxford',
           deposit_required: true,
@@ -37,12 +37,12 @@ describe('booking summary rows', () => {
       payment: { id: 'p1', task_id: 't1', amount: 2000, currency: 'GBP', status: 'paid' },
     });
     expect(rows).toEqual([
-      ['Booking', 'Confirmed'],
-      ['Venue', 'The Ivy Oxford'],
+      ['Result', 'Confirmed'],
+      ['Business', 'The Ivy Oxford'],
       ['Date', 'Mon 26 Oct'],
       ['Time', '18:30'],
-      ['Party size', '4 people'],
-      ['Name on booking', 'Alex'],
+      ['Details', 'table for 4'],
+      ['Name', 'Alex'],
       ['Deposit', '£20.00 · Paid'],
     ]);
   });
@@ -56,37 +56,16 @@ describe('booking summary rows', () => {
         outcome: {
           booked: false,
           venue: 'The Ivy Oxford',
-          party_size: 4,
+          details: 'table for 4',
           offered_times: ['2026-10-26T20:30', '2026-10-26T21:00'],
         },
       },
     });
     expect(rows).toEqual([
-      ['Booking', 'Not booked'],
-      ['Venue', 'The Ivy Oxford'],
-      ['Party size', '4 people'],
+      ['Result', 'Not confirmed'],
+      ['Business', 'The Ivy Oxford'],
+      ['Details', 'table for 4'],
       ['Other times offered', '20:30, 21:00'],
-    ]);
-  });
-
-  it('falls back to the calendar event when there is no outcome (demo mode)', () => {
-    const rows = bookingRows({
-      ...base,
-      calendar_event: {
-        id: 'e1',
-        task_id: 't1',
-        title: 'Dinner',
-        starts_at: '2026-10-26T18:30:00Z', // 26 Oct is GMT, so 18:30 UK
-        ends_at: '2026-10-26T20:00:00Z',
-        location: 'The Ivy Oxford',
-      },
-    });
-    expect(rows).toEqual([
-      ['Booking', 'Confirmed'],
-      ['Venue', 'The Ivy Oxford'],
-      ['Date', 'Mon 26 Oct'],
-      ['Time', '18:30'],
-      ['Deposit', 'None'],
     ]);
   });
 

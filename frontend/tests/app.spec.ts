@@ -12,6 +12,9 @@ test('create an agent with explicit tool permissions', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Agent name' }).fill('Robin');
   await page.getByRole('dialog').getByRole('checkbox', { name: 'Payments' }).uncheck();
   await page.getByRole('dialog').getByRole('button', { name: 'Create agent', exact: true }).click();
+  // A new agent opens straight into its chat.
+  await expect(page.getByRole('textbox', { name: 'Message Robin' })).toBeVisible();
+  await page.goto('/');
   const card = page
     .getByRole('article')
     .filter({ has: page.getByRole('heading', { name: 'Robin', exact: true }) });
@@ -23,7 +26,7 @@ test('create an agent with explicit tool permissions', async ({ page }) => {
     true,
   );
 });
-test('booking, approval, persisted transcript, calendar export, analytics', async ({ page }) => {
+test('booking, approval, persisted transcript, call result, analytics', async ({ page }) => {
   await page.goto('/chat/maya');
   await page.getByRole('textbox', { name: 'Message Maya' }).fill(BOOKING);
   await page.getByRole('button', { name: 'Send message' }).click();
@@ -36,17 +39,7 @@ test('booking, approval, persisted transcript, calendar export, analytics', asyn
   await expect(page.getByText('All taken care of.', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText('All taken care of.', { exact: true })).toBeVisible();
-  await page.goto('/calendar');
-  await expect(
-    page.getByRole('heading', { name: 'Dinner at The Ivy Oxford · 4 guests' }),
-  ).toBeVisible();
-  const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export calendar' }).click();
-  expect((await downloadPromise).suggestedFilename()).toBe('concierge.ics');
-  await page.getByRole('button', { name: 'Month', exact: true }).click();
-  await expect(
-    page.getByText('Dinner at The Ivy Oxford · 4 guests', { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Call result' })).toContainText('Confirmed');
   await page.goto('/analytics');
   await expect(page.getByText('100%', { exact: true }).first()).toBeVisible();
 });
@@ -60,8 +53,6 @@ test('decline and no-answer failure remain actionable', async ({ page }) => {
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Let’s try another way')).toBeVisible({ timeout: 10000 });
   await expect(page.getByRole('textbox', { name: 'Message Maya' })).toBeEnabled();
-  await page.goto('/calendar');
-  await expect(page.getByText('No plans yet')).toBeVisible();
 });
 
 test('agent arrows preserve separate permission choices, then save on entry', async ({ page }) => {
@@ -149,28 +140,21 @@ test('important text has readable contrast and controls fit the viewport', async
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('edit, duplicate, and delete an agent without deleting its original', async ({ page }) => {
+test('edit and delete an agent', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Manage agent').click();
   await page.getByRole('button', { name: 'Edit agent', exact: true }).click();
   await page.getByRole('textbox', { name: 'Agent name' }).fill('Maya edited');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('heading', { name: 'Maya edited', exact: true })).toBeVisible();
-  await page.getByLabel('Manage agent').click();
-  await page.getByRole('button', { name: 'Duplicate agent', exact: true }).click();
-  await page
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Duplicate agent', exact: true })
-    .click();
-  await expect(page.getByRole('heading', { name: 'Maya edited copy', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Duplicate agent' })).toHaveCount(0);
   await page.getByLabel('Manage agent').click();
   await page.getByRole('button', { name: 'Delete agent', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Delete agent', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Maya edited copy', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Next agent' }).click();
-  await expect(page.getByRole('heading', { name: 'Maya edited', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Maya edited', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Leo', exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Maya edited', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Leo', exact: true })).toBeVisible();
 });
 test('history searches transcripts, filters tasks, and opens a direct task view', async ({
   page,

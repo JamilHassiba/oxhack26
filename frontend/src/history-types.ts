@@ -8,7 +8,7 @@ export type TaskHistory = {
   persistent: boolean;
 };
 export function previousAgent(id: string): Agent {
-  return { id, name: 'Previous agent', voice: '', tools: [] };
+  return { id, name: 'Previous agent', tools: [] };
 }
 export function isActive(task: Task) {
   return !['done', 'failed'].includes(task.status);

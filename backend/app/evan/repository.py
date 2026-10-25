@@ -8,17 +8,15 @@ from app.evan.models import (
     Agent,
     AgentInput,
     AgentPatch,
-    CalendarEvent,
-    CalendarInput,
     Task,
 )
 
 ACTIVE = ("planning", "calling", "awaiting_approval")
-AGENT_COLUMNS = "id, name, voice, tools"
+AGENT_COLUMNS = "id, name, tools"
 # Lateral subqueries avoid multiplying rows when a task has several calls/events.
 TASK_SELECT = """
 SELECT t.id, t.agent_id, t.goal, t.status, t.summary, t.created_at,
-       row_to_json(c) AS call, row_to_json(p) AS payment, row_to_json(ce) AS calendar_event,
+       row_to_json(c) AS call, row_to_json(p) AS payment,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('ts', e.ts, 'call_id', e.call_id,
            'kind', e.kind, 'payload', e.payload) ORDER BY e.ts)
            FROM call_events e WHERE e.call_id = c.id), '[]'::jsonb) AS events
@@ -27,8 +25,6 @@ LEFT JOIN LATERAL (SELECT * FROM calls WHERE task_id = t.id
     ORDER BY started_at DESC NULLS LAST, id DESC LIMIT 1) c ON true
 LEFT JOIN LATERAL (SELECT * FROM payments WHERE task_id = t.id
     ORDER BY (status = 'pending_approval') DESC, id DESC LIMIT 1) p ON true
-LEFT JOIN LATERAL (SELECT * FROM calendar_events WHERE task_id = t.id
-    ORDER BY starts_at, id LIMIT 1) ce ON true
 """
 
 
@@ -78,14 +74,8 @@ class Repository:
         if not user:
             raise HTTPException(503, "Seed the demo user before creating an agent.")
         row = await self.one(
-            f"INSERT INTO agents (id, user_id, name, voice, tools) VALUES (%s, %s, %s, %s, %s) RETURNING {AGENT_COLUMNS}",
-            (
-                uuid4(),
-                user["id"],
-                data.name,
-                data.voice,
-                Jsonb(data.tools),
-            ),
+            f"INSERT INTO agents (id, user_id, name, tools) VALUES (%s, %s, %s, %s) RETURNING {AGENT_COLUMNS}",
+            (uuid4(), user["id"], data.name, Jsonb(data.tools)),
         )
         return Agent.model_validate(wire(row))
 
@@ -140,12 +130,6 @@ class Repository:
                 row["call"]["transcript"] = []
         return [Task.model_validate(wire(row)) for row in rows]
 
-    async def calendar(self):
-        rows = await self.rows(
-            "SELECT id, task_id, title, starts_at, ends_at, location FROM calendar_events ORDER BY starts_at, id"
-        )
-        return [CalendarEvent.model_validate(wire(row)) for row in rows]
-
     async def tool_owner(self, task_id, tool):
         row = await self.one(
             "SELECT a.tools, u.email FROM tasks t JOIN agents a ON a.id = t.agent_id JOIN users u ON u.id = a.user_id WHERE t.id = %s FOR SHARE OF a",
@@ -157,27 +141,3 @@ class Repository:
             raise HTTPException(403, f"The agent does not have {tool} permission.")
         return row
 
-    async def create_calendar_event(self, task_id, data: CalendarInput):
-        await self.tool_owner(task_id, "calendar")
-        # Serializes retries for one task without changing Jamil's base table definition.
-        await self.conn.execute(
-            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (str(task_id),)
-        )
-        existing = await self.one(
-            "SELECT id, task_id, title, starts_at, ends_at, location FROM calendar_events WHERE task_id = %s ORDER BY starts_at, id LIMIT 1",
-            (task_id,),
-        )
-        if existing:
-            event = CalendarEvent.model_validate(wire(existing))
-            if any(
-                getattr(event, key) != value for key, value in data.model_dump().items()
-            ):
-                raise HTTPException(
-                    409, "This task already has a different calendar event."
-                )
-            return event
-        row = await self.one(
-            "INSERT INTO calendar_events (id, task_id, title, starts_at, ends_at, location) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id, task_id, title, starts_at, ends_at, location",
-            (uuid4(), task_id, data.title, data.starts_at, data.ends_at, data.location),
-        )
-        return CalendarEvent.model_validate(wire(row))

@@ -1,5 +1,5 @@
 import { demo } from './demo';
-import type { Agent, AgentInput, Analytics, CalendarEvent, Task, Tool } from './types';
+import type { Agent, AgentInput, Analytics, Task, Tool } from './types';
 import type { HistoryEntry, TaskHistory } from './history-types';
 import { isActive, previousAgent } from './history-types';
 import { archivedHistory, archiveHistory, archivePersistent } from './history-archive';
@@ -101,51 +101,5 @@ export const api = {
         }),
   hangUp: (callId: string) =>
     request<void>(`/calls/${encodeURIComponent(callId)}/hang-up`, { method: 'POST' }),
-  calendar: (): Promise<CalendarEvent[]> => (DEMO ? demo.calendar() : request('/calendar')),
   analytics: (): Promise<Analytics> => (DEMO ? demo.analytics() : request('/analytics/summary')),
 };
-function escapeIcs(value: string) {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/\r?\n/g, '\\n')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,');
-}
-export function calendarIcs(events: CalendarEvent[]) {
-  const date = (s: string) =>
-    new Date(s)
-      .toISOString()
-      .replace(/[-:]/g, '')
-      .replace(/\.\d{3}Z/, 'Z');
-  return [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//Concierge//Calendar//EN',
-    ...events.flatMap((e) => [
-      'BEGIN:VEVENT',
-      `UID:${escapeIcs(e.id)}@concierge`,
-      `DTSTAMP:${date(new Date().toISOString())}`,
-      `DTSTART:${date(e.starts_at)}`,
-      `DTEND:${date(e.ends_at)}`,
-      `SUMMARY:${escapeIcs(e.title)}`,
-      `LOCATION:${escapeIcs(e.location)}`,
-      'END:VEVENT',
-    ]),
-    'END:VCALENDAR',
-    '',
-  ].join('\r\n');
-}
-export function downloadCalendar(events: CalendarEvent[]) {
-  if (!DEMO) {
-    window.location.assign(`${BASE}/calendar.ics`);
-    return;
-  }
-  const url = URL.createObjectURL(
-    new Blob([calendarIcs(events)], { type: 'text/calendar;charset=utf-8' }),
-  );
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'concierge.ics';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}

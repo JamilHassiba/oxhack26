@@ -1,4 +1,4 @@
-import type { Agent, AgentInput, Analytics, CalendarEvent, Task, Tool } from './types';
+import type { Agent, AgentInput, Analytics, Task, Tool } from './types';
 import type { HistoryEntry, TaskHistory } from './history-types';
 import { isActive, previousAgent } from './history-types';
 import { isDemoScenario, scenarioFor, type DemoScenario } from './features/demo/scenarios';
@@ -7,13 +7,11 @@ const presets: Agent[] = [
   {
     id: 'maya',
     name: 'Maya',
-    voice: 'Warm & natural',
     tools: ['phone', 'email', 'calendar', 'payments'],
   },
   {
     id: 'leo',
     name: 'Leo',
-    voice: 'Calm & clear',
     tools: ['email', 'calendar'],
   },
 ];
@@ -90,17 +88,15 @@ function complete(task: Task, ts = new Date().toISOString()) {
     : task.call
       ? `Table for 4 confirmed at The Ivy Oxford tomorrow at ${hour}:00.${task.payment ? ' £20 test deposit approved.' : ''}${agent.tools.includes('email') ? ' Demo confirmation email prepared.' : ''}`
       : 'Demo request completed.';
-  if (!denied && agent.tools.includes('calendar')) {
-    const starts = new Date(task.created_at);
-    starts.setDate(starts.getDate() + 1);
-    starts.setHours(hour, 0, 0, 0);
-    task.calendar_event = {
-      id: `event-${task.id}`,
-      task_id: task.id,
-      title: task.call ? 'Dinner at The Ivy Oxford · 4 guests' : task.goal,
-      starts_at: starts.toISOString(),
-      ends_at: new Date(+starts + 90 * 60000).toISOString(),
-      location: task.call ? 'The Ivy Oxford, 120–121 High Street, Oxford' : '',
+  if (task.call) {
+    const day = new Date(task.created_at);
+    day.setDate(day.getDate() + 1);
+    const date = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+    task.call.outcome = {
+      booked: !denied,
+      starts_at: denied ? null : `${date}T${hour}:00`,
+      details: 'table for 4',
+      venue: 'The Ivy Oxford',
     };
   }
 }
@@ -286,13 +282,6 @@ export const demo = {
     );
     complete(task);
     save();
-  },
-  async calendar(): Promise<CalendarEvent[]> {
-    state().tasks.forEach(advance);
-    save();
-    return structuredClone(
-      state().tasks.flatMap((t) => (t.calendar_event ? [t.calendar_event] : [])),
-    );
   },
   async analytics(): Promise<Analytics> {
     state().tasks.forEach(advance);

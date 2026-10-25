@@ -3,7 +3,11 @@ import type { Tool } from './types';
 export const tools = {
   phone: { label: 'Phone calls', icon: Phone, description: 'Make calls on your behalf' },
   email: { label: 'Email', icon: Mail, description: 'Send confirmation emails' },
-  calendar: { label: 'Calendar', icon: CalendarDays, description: 'Keep your plans in one place' },
+  calendar: {
+    label: 'Calendar',
+    icon: CalendarDays,
+    description: 'Add bookings to your Google Calendar',
+  },
   payments: {
     label: 'Payments',
     icon: CreditCard,

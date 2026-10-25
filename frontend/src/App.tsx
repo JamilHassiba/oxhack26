@@ -10,11 +10,8 @@ import {
 } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowDownToLine,
   ArrowRight,
   ArrowUp,
-  CalendarDays,
-  Check,
   CheckCheck,
   ChevronLeft,
   ChevronRight,
@@ -27,18 +24,18 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
-import { api, DEMO, downloadCalendar } from './api';
-import { tools, shortcuts, dateTime, TIME_ZONE } from './config';
+import { api, DEMO } from './api';
+import { tools, shortcuts, dateTime } from './config';
 import { Avatar, ErrorNotice, Loading, Empty, PageHeading } from './components/ui';
 import { TaskCard, PaymentCard } from './components/TaskCard';
 import { useAgents, useTasks, useWorkspaceTasks } from './state';
 import { AgentEditor } from './features/agents/AgentEditor';
-import type { Agent, CalendarEvent, Tool } from './types';
+import type { Agent, Tool } from './types';
 import { AgentActions } from './features/agents/AgentActions';
 import { HistoryPage, TaskDetailPage } from './features/history/HistoryPage';
 export default function App() {
   // No sidebar: the logo is the one way home, the home page is the agents page, and chats are
-  // entered from there. History, calendar, payments and analytics still work by URL.
+  // entered from there. History, payments and analytics still work by URL.
   return (
     <div className="app-shell">
       <div className="main-shell">
@@ -63,7 +60,6 @@ export default function App() {
             <Route path="/chat/:agentId" element={<ChatPage />} />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/history/:taskId" element={<TaskDetailPage />} />
-            <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -237,7 +233,10 @@ function AgentsPage() {
       {creating && (
         <AgentEditor
           onClose={() => setCreating(false)}
-          onCreated={(agent) => selectAgent(agent.id)}
+          onCreated={(agent) => {
+            selectAgent(agent.id);
+            navigate(`/chat/${agent.id}`);
+          }}
         />
       )}
     </div>
@@ -461,153 +460,6 @@ function PaymentsPage() {
         </Empty>
       )}
     </div>
-  );
-}
-function CalendarPage() {
-  const query = useQuery({ queryKey: ['calendar'], queryFn: api.calendar, refetchInterval: 5000 });
-  const [month, setMonth] = useState(
-    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-  );
-  const [view, setView] = useState<'list' | 'month'>('list');
-  const events = query.data || [];
-  const sorted = [...events].sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
-  const monthEvents = sorted.filter(
-    (e) =>
-      new Date(e.starts_at).getMonth() === month.getMonth() &&
-      new Date(e.starts_at).getFullYear() === month.getFullYear(),
-  );
-  const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const offset = (month.getDay() + 6) % 7;
-  return (
-    <div className="page">
-      <PageHeading
-        title="Calendar"
-        description="Your confirmed plans."
-        action={
-          <button
-            className="secondary"
-            disabled={!events.length}
-            onClick={() => downloadCalendar(events)}
-          >
-            <ArrowDownToLine size={16} /> Export calendar
-          </button>
-        }
-      />
-      <div className="section-heading">
-        <h2>
-          Your calendar <span>{events.length}</span>
-        </h2>
-        <div className="segmented">
-          <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
-            List
-          </button>
-          <button className={view === 'month' ? 'active' : ''} onClick={() => setView('month')}>
-            Month
-          </button>
-        </div>
-      </div>
-      {query.isPending ? (
-        <Loading />
-      ) : query.isError ? (
-        <ErrorNotice error={query.error} retry={() => query.refetch()} />
-      ) : view === 'list' ? (
-        <div className="calendar-list">
-          {sorted.length ? (
-            sorted.map((event) => <CalendarRow key={event.id} event={event} />)
-          ) : (
-            <Empty icon={<CalendarDays size={28} />} title="No plans yet">
-              Ask an agent to make a booking.
-            </Empty>
-          )}
-        </div>
-      ) : (
-        <div className="month-calendar">
-          <div className="month-header">
-            <h2>{month.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</h2>
-            <div>
-              <button
-                className="icon-button"
-                aria-label="Previous month"
-                onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <button
-                className="icon-button"
-                aria-label="Next month"
-                onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
-          </div>
-          <div className="month-grid">
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-              <div className="day-heading" key={d}>
-                {d}
-              </div>
-            ))}
-            {Array.from({ length: offset }, (_, i) => (
-              <div className="day-cell blank" key={`blank-${i}`} />
-            ))}
-            {Array.from({ length: days }, (_, i) => (
-              <div
-                className={`day-cell ${new Date().toDateString() === new Date(month.getFullYear(), month.getMonth(), i + 1).toDateString() ? 'today' : ''}`}
-                key={i}
-              >
-                <span>{i + 1}</span>
-                {monthEvents
-                  .filter((e) => new Date(e.starts_at).getDate() === i + 1)
-                  .map((e) => (
-                    <span
-                      className="month-event"
-                      key={e.id}
-                      title={`${e.title} · ${dateTime(e.starts_at)}`}
-                    >
-                      {e.title}
-                    </span>
-                  ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      <p className="demo-note">Export to Apple Calendar, Google Calendar, or Outlook.</p>
-    </div>
-  );
-}
-function CalendarRow({ event }: { event: CalendarEvent }) {
-  const date = new Date(event.starts_at);
-  return (
-    <article className="calendar-row">
-      <div className="date-tile">
-        <span>{date.toLocaleDateString('en-GB', { timeZone: TIME_ZONE, month: 'short' })}</span>
-        <b>{date.toLocaleDateString('en-GB', { timeZone: TIME_ZONE, day: 'numeric' })}</b>
-      </div>
-      <div>
-        <span className="eyebrow">CONFIRMED PLAN</span>
-        <h3>{event.title}</h3>
-        <p>
-          <Clock3 size={13} />
-          {date.toLocaleDateString('en-GB', { timeZone: TIME_ZONE, weekday: 'long' })} ·{' '}
-          {date.toLocaleTimeString('en-GB', {
-            timeZone: TIME_ZONE,
-            hour: '2-digit',
-            minute: '2-digit',
-          })}{' '}
-          –{' '}
-          {new Date(event.ends_at).toLocaleTimeString('en-GB', {
-            timeZone: TIME_ZONE,
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </p>
-        <small>{event.location}</small>
-      </div>
-      <span className="status-chip done">
-        <Check size={12} /> Confirmed
-      </span>
-    </article>
   );
 }
 function AnalyticsPage() {

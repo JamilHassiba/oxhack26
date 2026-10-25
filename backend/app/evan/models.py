@@ -19,7 +19,6 @@ Name = Annotated[str, Field(min_length=1, max_length=40)]
 class AgentInput(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     name: Name
-    voice: str = Field(min_length=1, max_length=100)
     tools: list[Tool]
 
     @field_validator("tools")
@@ -31,7 +30,6 @@ class AgentInput(BaseModel):
 class AgentPatch(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     name: Name | None = None
-    voice: str | None = Field(default=None, min_length=1, max_length=100)
     tools: list[Tool] | None = None
 
     @model_validator(mode="after")
@@ -58,12 +56,12 @@ class TranscriptLine(BaseModel):
 
 class CallOutcome(BaseModel):
     """What Gemini extracted from the call (orchestrator/outcome.py); drives the booking summary table.
-    Every field is optional: older calls were extracted before booking_name/venue existed."""
+    Every field is optional: older calls were extracted before some fields existed."""
 
     result: str | None = None  # booked | fully_booked | no_answer | voicemail | declined | other
     booked: bool | None = None
     starts_at: str | None = None  # UK wall-clock time, e.g. "2026-10-26T18:30" (no offset)
-    party_size: int | None = None
+    details: str | None = None
     booking_name: str | None = None
     venue: str | None = None
     deposit_required: bool | None = None
@@ -88,15 +86,6 @@ class Payment(BaseModel):
     currency: str
     merchant: str | None = None
     status: Literal["pending_approval", "approved", "paid", "denied"]
-
-
-class CalendarEvent(BaseModel):
-    id: str
-    task_id: str
-    title: str
-    starts_at: AwareDatetime
-    ends_at: AwareDatetime
-    location: str
 
 
 class EventPayload(BaseModel):
@@ -128,19 +117,5 @@ class Task(BaseModel):
     created_at: AwareDatetime
     call: Call | None = None
     payment: Payment | None = None
-    calendar_event: CalendarEvent | None = None
     events: list[CallEvent] = Field(default_factory=list)
 
-
-class CalendarInput(BaseModel):
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-    title: str = Field(min_length=1, max_length=200)
-    starts_at: AwareDatetime
-    ends_at: AwareDatetime
-    location: str = Field(default="", max_length=500)
-
-    @model_validator(mode="after")
-    def positive_duration(self):
-        if self.ends_at <= self.starts_at:
-            raise ValueError("The event must end after it starts.")
-        return self

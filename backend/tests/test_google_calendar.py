@@ -18,7 +18,7 @@ DETAILS = {
     "outcome": {
         "booked": True,
         "booking_name": "Alex",
-        "party_size": 2,
+        "details": "table for 2",
         "venue": "The Ivy Oxford",
         "deposit_required": True,
         "deposit_amount_pence": 2000,
@@ -39,7 +39,7 @@ def test_event_has_the_booking_details():
     assert body["start"] == {"dateTime": "2026-10-26T19:00:00+00:00", "timeZone": "Europe/London"}
     assert body["description"].splitlines() == [
         "Name on booking: Alex",
-        "Party size: 2",
+        "Details: table for 2",
         "Deposit: £20.00 (paid)",
         "",
         "Booked by Maya, your AI concierge, on a phone call.",

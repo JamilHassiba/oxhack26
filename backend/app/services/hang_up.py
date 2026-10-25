@@ -27,7 +27,7 @@ HUNG_UP_OUTCOME = {
     "result": "other",
     "booked": False,
     "starts_at": None,
-    "party_size": None,
+    "details": None,
     "booking_name": None,
     "venue": None,
     "deposit_required": False,

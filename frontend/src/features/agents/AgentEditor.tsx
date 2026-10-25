@@ -14,28 +14,14 @@ export function AgentEditor({
   onClose: () => void;
   onCreated?: (agent: Agent) => void;
   initialAgent?: Agent;
-  mode?: 'create' | 'edit' | 'duplicate';
+  mode?: 'create' | 'edit';
 }) {
   const client = useQueryClient();
   const [enabled, setEnabled] = useState<Tool[]>(
     initialAgent?.tools || ['phone', 'email', 'calendar', 'payments'],
   );
-  const title =
-    mode === 'edit' ? 'Edit agent' : mode === 'duplicate' ? 'Duplicate agent' : 'Create an agent';
-  const submitLabel =
-    mode === 'edit' ? 'Save changes' : mode === 'duplicate' ? 'Duplicate agent' : 'Create agent';
-  const voices = [
-    ...new Set([
-      'Warm & natural',
-      'Calm & clear',
-      'Bright & friendly',
-      ...(initialAgent?.voice ? [initialAgent.voice] : []),
-    ]),
-  ];
-  const names = (client.getQueryData<Agent[]>(['agents']) || []).map((a) => a.name);
-  let duplicateName = `${initialAgent?.name.slice(0, 35)} copy`;
-  for (let i = 2; names.includes(duplicateName); i++)
-    duplicateName = `${initialAgent?.name.slice(0, 30)} copy ${i}`;
+  const title = mode === 'edit' ? 'Edit agent' : 'Create an agent';
+  const submitLabel = mode === 'edit' ? 'Save changes' : 'Create agent';
   const mutation = useMutation({
     mutationFn: (input: AgentInput) =>
       mode === 'edit' && initialAgent
@@ -53,7 +39,6 @@ export function AgentEditor({
     const data = new FormData(e.currentTarget);
     const input: AgentInput = {
       name: String(data.get('name')).trim(),
-      voice: String(data.get('voice')),
       tools: enabled,
     };
     if (input.name) mutation.mutate(input);
@@ -74,21 +59,9 @@ export function AgentEditor({
             required
             maxLength={40}
             autoFocus
-            defaultValue={mode === 'duplicate' ? duplicateName : initialAgent?.name || ''}
+            defaultValue={initialAgent?.name || ''}
             disabled={mutation.isPending}
           />
-        </label>
-        <label>
-          Voice
-          <select
-            name="voice"
-            defaultValue={initialAgent?.voice || voices[0]}
-            disabled={mutation.isPending}
-          >
-            {voices.map((voice) => (
-              <option key={voice}>{voice}</option>
-            ))}
-          </select>
         </label>
         <fieldset disabled={mutation.isPending}>
           <legend>Tools</legend>

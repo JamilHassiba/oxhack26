@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, LoaderCircle, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { LoaderCircle, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../../api';
 import { isActive } from '../../history-types';
 import { Modal, ErrorNotice } from '../../components/ui';
@@ -18,7 +18,7 @@ export function AgentActions({
   onDeleted: () => void;
   disabled?: boolean;
 }) {
-  const [mode, setMode] = useState<'edit' | 'duplicate' | 'delete' | null>(null);
+  const [mode, setMode] = useState<'edit' | 'delete' | null>(null);
   const menu = useRef<HTMLDetailsElement>(null);
   function choose(value: typeof mode) {
     if (disabled) return;
@@ -36,18 +36,15 @@ export function AgentActions({
           <button disabled={disabled} onClick={() => choose('edit')}>
             <Pencil size={16} /> Edit agent
           </button>
-          <button disabled={disabled} onClick={() => choose('duplicate')}>
-            <Copy size={16} /> Duplicate agent
-          </button>
           <button disabled={disabled} className="danger-text" onClick={() => choose('delete')}>
             <Trash2 size={16} /> Delete agent
           </button>
         </div>
       </details>
-      {(mode === 'edit' || mode === 'duplicate') && (
+      {mode === 'edit' && (
         <AgentEditor
           initialAgent={agent}
-          mode={mode}
+          mode="edit"
           onCreated={onSaved}
           onClose={() => setMode(null)}
         />

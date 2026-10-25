@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Phone,
@@ -8,14 +7,12 @@ import {
   CircleHelp,
   CheckCheck,
   Radio,
-  CalendarDays,
-  ArrowRight,
   CreditCard,
   ShieldCheck,
   PhoneOff,
 } from 'lucide-react';
 import { api, BASE, DEMO } from '../api';
-import { labels, dateTime, money } from '../config';
+import { labels, money } from '../config';
 import { ErrorNotice } from './ui';
 import { BookingSummary } from './BookingSummary';
 import type { Agent, CallEvent, Task, Payment } from '../types';
@@ -149,7 +146,6 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
           </div>
         </div>
       )}
-      {!running && <BookingSummary task={task} />}
       {task.payment && <PaymentCard payment={task.payment} agentId={task.agent_id} />}
       {task.call && (
         <details className="call-details" open={running}>
@@ -195,16 +191,7 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
           </div>
         </details>
       )}
-      {task.calendar_event && (
-        <Link className="calendar-result" to="/calendar">
-          <CalendarDays size={20} />
-          <div>
-            <strong>{task.calendar_event.title}</strong>
-            <small>{dateTime(task.calendar_event.starts_at)}</small>
-          </div>
-          <ArrowRight size={16} />
-        </Link>
-      )}
+      {!running && <BookingSummary task={task} />}
     </div>
   );
 }
@@ -230,7 +217,6 @@ export function PaymentCard({ payment, agentId }: { payment: Payment; agentId: s
     mutationFn: (approve: boolean) => api.decide(payment.id, approve),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['tasks', agentId] });
-      client.invalidateQueries({ queryKey: ['calendar'] });
       client.invalidateQueries({ queryKey: ['history'] });
       client.invalidateQueries({ queryKey: ['task', payment.task_id] });
       client.invalidateQueries({ queryKey: ['analytics'] });
