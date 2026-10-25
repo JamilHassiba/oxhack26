@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   Link,
-  NavLink,
   Navigate,
   Route,
   Routes,
@@ -14,18 +13,13 @@ import {
   ArrowDownToLine,
   ArrowRight,
   ArrowUp,
-  BarChart3,
   CalendarDays,
   Check,
   CheckCheck,
   ChevronLeft,
   ChevronRight,
-  CircleHelp,
   Clock3,
   CreditCard,
-  ExternalLink,
-  LayoutGrid,
-  History,
   LoaderCircle,
   MessageSquare,
   Phone,
@@ -35,7 +29,7 @@ import {
 } from 'lucide-react';
 import { api, DEMO, downloadCalendar } from './api';
 import { tools, shortcuts, dateTime, TIME_ZONE } from './config';
-import { Avatar, ErrorNotice, Loading, Empty, Modal, PageHeading } from './components/ui';
+import { Avatar, ErrorNotice, Loading, Empty, PageHeading } from './components/ui';
 import { TaskCard, PaymentCard } from './components/TaskCard';
 import { useAgents, useTasks, useWorkspaceTasks } from './state';
 import { AgentEditor } from './features/agents/AgentEditor';
@@ -45,68 +39,28 @@ import { HistoryPage, TaskDetailPage } from './features/history/HistoryPage';
 import { ScenarioPicker } from './features/demo/ScenarioPicker';
 import { scenarios, type DemoScenario } from './features/demo/scenarios';
 export default function App() {
-  const { data: agents = [] } = useAgents();
-  const [help, setHelp] = useState(false);
+  // No sidebar: the logo is the one way home, the home page is the agents page, and chats are
+  // entered from there. History, calendar, payments and analytics still work by URL.
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <Link to="/" className="brand">
-          <span className="brand-mark">
-            <Sparkles size={22} />
-          </span>
-          concierge<span className="brand-dot">.</span>
-        </Link>
-        <div className="workspace-label">YOUR WORKSPACE</div>
-        <nav aria-label="Main navigation">
-          <NavLink to="/agents">
-            <LayoutGrid size={19} /> Agents <span className="nav-count">{agents.length}</span>
-          </NavLink>
-          <NavLink to="/chat">
-            <MessageSquare size={19} /> Chat
-          </NavLink>
-          <NavLink to="/history">
-            <History size={19} /> History
-          </NavLink>
-          <NavLink to="/calendar">
-            <CalendarDays size={19} /> Calendar
-          </NavLink>
-          <NavLink to="/payments">
-            <CreditCard size={19} /> Payments
-          </NavLink>
-          <NavLink to="/analytics" className="secondary-nav">
-            <BarChart3 size={19} /> Analytics
-          </NavLink>
-        </nav>
-        <div className="sidebar-bottom">
-          <button className="help-button" onClick={() => setHelp(true)}>
-            <CircleHelp size={18} /> Help <ExternalLink size={13} />
-          </button>
-          <div className="profile">
-            <span className="user-avatar">Y</span>
-            <div>
-              <strong>Your workspace</strong>
-              <small>Personal account</small>
-            </div>
-            <span className="online-dot" />
-          </div>
-        </div>
-      </aside>
       <div className="main-shell">
         <header className="topbar">
-          <span>Personal workspace</span>
-          <div className="workspace-options">
-            <Link className="mobile-activity" to="/analytics" aria-label="Analytics">
-              <BarChart3 size={17} />
-            </Link>
-            <span className="mode-badge">
-              <span /> {DEMO ? 'Demo · simulated' : 'Connected to backend'}
+          <Link to="/" className="brand brand-button" aria-label="concierge. Home">
+            <span className="brand-mark">
+              <Sparkles size={20} />
             </span>
-          </div>
+            concierge<span className="brand-dot">.</span>
+          </Link>
+          {DEMO && (
+            <span className="mode-badge">
+              <span /> Demo · simulated
+            </span>
+          )}
         </header>
         <main>
           <Routes>
-            <Route path="/" element={<Navigate to="/agents" replace />} />
-            <Route path="/agents" element={<AgentsPage />} />
+            <Route path="/" element={<AgentsPage />} />
+            <Route path="/agents" element={<Navigate to="/" replace />} />
             <Route path="/chat" element={<ChatRedirect />} />
             <Route path="/chat/:agentId" element={<ChatPage />} />
             <Route path="/history" element={<HistoryPage />} />
@@ -114,26 +68,10 @@ export default function App() {
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="*" element={<Navigate to="/agents" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>
-      {help && (
-        <Modal title="Meet your concierge" onClose={() => setHelp(false)}>
-          <p className="modal-copy">
-            Create an agent, choose its tools, and give it a task in chat. You can watch calls
-            unfold, approve deposits, and find confirmed plans in your calendar.
-          </p>
-          <div className="info-box">
-            {DEMO
-              ? 'This is a local demo. Calls, emails, reservations, and payments are simulated. Try the suggested dinner booking to see the full flow. Type “no answer” to try a failed call.'
-              : 'Tasks are sent to your connected backend. Payments require your approval.'}
-          </div>
-          <button className="primary full" onClick={() => setHelp(false)}>
-            Got it <Check size={16} />
-          </button>
-        </Modal>
-      )}
     </div>
   );
 }
@@ -187,8 +125,8 @@ function AgentsPage() {
   return (
     <div className="page agent-selection-page">
       <PageHeading
-        title="Choose your agent"
-        description="Set its permissions, then start a chat."
+        title="Your agents"
+        description="Create an agent, choose what it can do, then start a chat."
         action={
           <button className="secondary create-agent-button" onClick={() => setCreating(true)}>
             <Plus size={17} /> <span>Create agent</span>
@@ -300,9 +238,14 @@ function AgentsPage() {
           </p>
         </section>
       ) : (
-        <Empty icon={<Sparkles />} title="Create your first agent">
-          Choose the tools it can use, then start a chat.
-        </Empty>
+        <div className="home-empty">
+          <Empty icon={<Sparkles />} title="Create your first agent">
+            Choose the tools it can use, then start a chat.
+          </Empty>
+          <button className="primary" onClick={() => setCreating(true)}>
+            <Plus size={17} /> Create agent
+          </button>
+        </div>
       )}
       {creating && (
         <AgentEditor
@@ -331,7 +274,7 @@ function ChatRedirect() {
       <Empty icon={<MessageSquare />} title="Your first conversation starts here">
         Create an agent to get started.
       </Empty>
-      <Link className="primary" to="/agents">
+      <Link className="primary" to="/">
         Meet your agents <ArrowRight size={16} />
       </Link>
     </div>
@@ -380,7 +323,7 @@ function ChatPage() {
         <Empty icon={<MessageSquare />} title="Agent not found">
           Choose an agent to start a conversation.
         </Empty>
-        <Link to="/agents" className="text-button">
+        <Link to="/" className="text-button">
           View agents <ArrowRight size={16} />
         </Link>
       </div>
@@ -424,31 +367,6 @@ function ChatPage() {
             {!list.length && !tasks.isPending && (
               <div className="chat-welcome">
                 <h1>What can I help with?</h1>
-                <div className="suggestions">
-                  {Object.entries(shortcuts)
-                    .filter(([, shortcut]) => agent.tools.includes(shortcut.tool))
-                    .map(([key, shortcut]) => {
-                      const Icon = shortcut.icon;
-                      return (
-                        <button
-                          key={key}
-                          onClick={() => {
-                            setMessage(
-                              DEMO && key === 'call'
-                                ? scenarios[scenario || 'success'].prompt
-                                : shortcut.prompt,
-                            );
-                            composer.current?.focus();
-                          }}
-                        >
-                          <Icon size={18} />
-                          <span>{key === 'call' ? 'Book a table' : shortcut.label}</span>
-                          <ArrowRight size={16} />
-                        </button>
-                      );
-                    })}
-                </div>
-                {DEMO && <p className="demo-note">Try “Book a table” for the simulated booking.</p>}
               </div>
             )}
             {tasks.isPending && <Loading />}

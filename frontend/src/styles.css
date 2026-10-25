@@ -82,17 +82,7 @@ svg {
   display: flex;
   min-height: 100dvh;
 }
-.sidebar {
-  width: 220px;
-  position: fixed;
-  inset: 0 auto 0 0;
-  background: #eeefe8;
-  border-right: 1px solid var(--border);
-  padding: 29px 16px 18px;
-  display: flex;
-  flex-direction: column;
-  z-index: 10;
-}
+
 .brand {
   display: flex;
   align-items: center;
@@ -115,72 +105,7 @@ svg {
   color: var(--accent);
   margin-left: -8px;
 }
-.workspace-label {
-  margin: 43px 12px 12px;
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 1.1px;
-  color: var(--muted);
-}
-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-nav a {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 7px;
-  font-size: 14px;
-  font-weight: 550;
-  color: #50594a;
-}
-nav a:hover {
-  background: #e3e7da;
-}
-nav a.active {
-  background: #dce5d0;
-  color: #2f4822;
-}
-nav a.secondary-nav {
-  margin-top: 23px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-  border-radius: 0;
-}
-.nav-count {
-  margin-left: auto;
-  font-size: 11px;
-  background: #d1ddc3;
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-.sidebar-bottom {
-  margin-top: auto;
-}
-.help-button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 13px 12px;
-  color: var(--muted);
-  background: transparent;
-  font-size: 13px;
-}
-.help-button svg:last-child {
-  margin-left: auto;
-}
-.profile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-top: 1px solid var(--border);
-  padding: 16px 8px 0;
-  margin-top: 8px;
-}
+
 .user-avatar {
   width: 34px;
   height: 34px;
@@ -193,15 +118,7 @@ nav a.secondary-nav {
   font-weight: 650;
   font-size: 13px;
 }
-.profile strong,
-.profile small {
-  display: block;
-  font-size: 12px;
-}
-.profile small {
-  color: var(--muted);
-  margin-top: 2px;
-}
+
 .online-dot,
 .available > span {
   display: inline-block;
@@ -210,9 +127,7 @@ nav a.secondary-nav {
   height: 6px;
   border-radius: 50%;
 }
-.profile .online-dot {
-  margin-left: auto;
-}
+
 .main-shell {
   flex: 1;
   min-width: 0;
@@ -659,31 +574,7 @@ legend {
   letter-spacing: -0.9px;
   margin-bottom: 25px;
 }
-.suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.suggestions button {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 13px;
-  background: #fff;
-  border: 1px solid #cbd4be;
-  color: #384d29;
-  border-radius: 7px;
-  font-size: 14px;
-  font-weight: 550;
-  min-height: 48px;
-}
-.suggestions button:hover {
-  background: var(--sage);
-  border-color: #9aad83;
-}
-.suggestions button > svg:last-child {
-  width: 14px;
-}
+
 .demo-note {
   font-size: 12px;
   color: var(--muted);
@@ -1330,10 +1221,6 @@ legend {
   }
 }
 @media (max-width: 1100px) {
-  .sidebar {
-    width: 195px;
-    padding-inline: 13px;
-  }
   .brand {
     font-size: 22px;
   }
@@ -1372,17 +1259,7 @@ legend {
   .app-shell {
     display: block;
   }
-  .sidebar {
-    position: sticky;
-    top: 0;
-    inset: auto;
-    width: 100%;
-    padding: 12px 16px 9px;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-    background: #eeefe8f5;
-    backdrop-filter: blur(10px);
-  }
+
   .brand {
     font-size: 22px;
     padding: 0;
@@ -1395,35 +1272,7 @@ legend {
   .brand-mark svg {
     width: 18px;
   }
-  .workspace-label,
-  .sidebar-bottom {
-    display: none;
-  }
-  nav {
-    flex-direction: row;
-    justify-content: space-between;
-    gap: 3px;
-    margin-top: 13px;
-  }
-  nav a {
-    flex: 1;
-    flex-direction: column;
-    gap: 4px;
-    justify-content: center;
-    font-size: 11px;
-    padding: 7px 5px;
-    min-height: 49px;
-  }
-  nav a svg {
-    width: 18px;
-    height: 18px;
-  }
-  nav a.secondary-nav {
-    display: none;
-  }
-  .nav-count {
-    display: none;
-  }
+
   .main-shell {
     margin-left: 0;
   }
@@ -1496,17 +1345,7 @@ legend {
   .chat-welcome h1 {
     font-size: 27px;
   }
-  .suggestions {
-    gap: 8px;
-  }
-  .suggestions button {
-    font-size: 12px;
-    padding: 10px;
-    gap: 7px;
-  }
-  .suggestions button > svg:last-child {
-    display: none;
-  }
+
   .composer textarea {
     font-size: 16px;
   }
@@ -1778,14 +1617,7 @@ legend {
   font-size: 13px;
   margin-top: -4px;
 }
-.workspace-options {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.mobile-activity {
-  display: none;
-}
+
 .call-details {
   border-top: 1px solid #dce4cf;
 }
@@ -1868,14 +1700,6 @@ legend {
   .permission-grid {
     gap: 9px;
   }
-  .mobile-activity {
-    display: grid;
-    place-items: center;
-    color: #455b33;
-    min-width: 30px;
-    min-height: 30px;
-    border-radius: 4px;
-  }
 }
 @media (max-width: 700px) {
   .agent-selection-page .page-heading {
@@ -1922,5 +1746,51 @@ legend {
   }
   .selected-agent > .agent-details {
     margin-top: 10px;
+  }
+}
+
+/* Simple layout: no sidebar. The top bar holds the logo, which is its own button back to the home page. */
+.main-shell {
+  margin-left: 0;
+}
+.topbar {
+  height: 64px;
+  padding: 0 32px;
+}
+.brand-button {
+  padding: 6px 12px 6px 7px;
+  font-size: 21px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.brand-button:hover {
+  background: var(--sage);
+  border-color: #cdd5bf;
+}
+.brand-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.brand-button .brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+.home-empty {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+}
+@media (max-width: 700px) {
+  .topbar {
+    height: 56px;
+    padding: 0 16px;
+  }
+  .brand-button {
+    font-size: 19px;
   }
 }

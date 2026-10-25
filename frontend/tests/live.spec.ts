@@ -133,7 +133,7 @@ test('HTTP adapter, named SSE, approval, reload, and no demo metadata on the wir
 }) => {
   const state = await backend(page);
   await page.goto(`/chat/${agent.id}`);
-  await expect(page.getByText('Connected to backend')).toBeVisible();
+  await expect(page.getByText('Demo · simulated')).toHaveCount(0);
   await expect(page.getByLabel('Demo scenario')).toHaveCount(0);
   await page.getByRole('textbox', { name: 'Message Maya' }).fill('Book dinner');
   await page.getByRole('button', { name: 'Send message' }).click();
@@ -160,11 +160,11 @@ test('failed sends preserve the draft for a deliberate retry', async ({ page }) 
 test('permissions save failures do not enter the agent or discard choices', async ({ page }) => {
   const state = await backend(page);
   state.failPatch = true;
-  await page.goto('/agents');
+  await page.goto('/');
   await page.getByRole('checkbox', { name: 'Phone calls', exact: true }).uncheck();
   await page.getByRole('button', { name: 'Enter agent', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Could not save changes.');
-  await expect(page).toHaveURL(/\/agents$/);
+  await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole('checkbox', { name: 'Phone calls', exact: true })).not.toBeChecked();
   state.failPatch = false;
   await page.getByRole('button', { name: 'Enter agent', exact: true }).click();
@@ -190,7 +190,7 @@ test('profile update failure keeps the form, then saves and duplicates independe
 }) => {
   const state = await backend(page);
   state.failPatch = true;
-  await page.goto('/agents');
+  await page.goto('/');
   await page.getByText('Manage', { exact: true }).click();
   await page.getByRole('button', { name: 'Edit agent', exact: true }).click();
   await page.getByRole('textbox', { name: 'Agent name' }).fill('Maya edited');
@@ -214,7 +214,7 @@ test('server deletion conflict is handled and a later delete preserves archived 
 }) => {
   const state = await backend(page, [finished()]);
   state.failDelete = true;
-  await page.goto('/agents');
+  await page.goto('/');
   await page.getByLabel('Manage agent').click();
   await page.getByRole('button', { name: 'Delete agent', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Delete agent', exact: true }).click();
