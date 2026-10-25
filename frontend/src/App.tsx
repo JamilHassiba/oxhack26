@@ -330,19 +330,8 @@ function ChatPage() {
   }
   return (
     <div className="chat-page">
+      {/* Just the agent switcher: no name/status/tools block and no divider line. */}
       <div className="chat-top">
-        <div className="chat-identity">
-          <Avatar agent={agent} small />
-          <div>
-            <h2>
-              {agent.name}{' '}
-              <span className="available">
-                <span /> Ready to help
-              </span>
-            </h2>
-            <p>{agent.tools.map((tool) => tools[tool]?.label || tool).join(' · ')}</p>
-          </div>
-        </div>
         <select
           aria-label="Choose agent"
           value={agentId}

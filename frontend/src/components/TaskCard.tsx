@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -16,6 +16,7 @@ import {
 import { api, BASE, DEMO } from '../api';
 import { labels, dateTime, money } from '../config';
 import { ErrorNotice } from './ui';
+import { BookingSummary } from './BookingSummary';
 import type { Agent, CallEvent, Task, Payment } from '../types';
 function useCallEvents(task: Task) {
   const [events, setEvents] = useState<CallEvent[]>([]);
@@ -97,6 +98,11 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
     .filter((e) => e.kind === 'transcript_line')
     .map((e) => ({ speaker: e.payload.speaker || agent.name, text: e.payload.text || '' }));
   const transcript = streamed.length ? streamed : task.call?.transcript || [];
+  // While the call is live, keep the newest line in view as the conversation comes in.
+  const lastLine = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (running) lastLine.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [running, transcript.length]);
   return (
     <div className={`task-card ${task.status === 'failed' ? 'failed' : ''}`}>
       <div className="task-card-header">
@@ -135,6 +141,7 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
           </div>
         </div>
       )}
+      {!running && <BookingSummary task={task} />}
       {task.payment && <PaymentCard payment={task.payment} agentId={task.agent_id} />}
       {task.call && (
         <details className="call-details" open={running}>
@@ -163,6 +170,7 @@ export function TaskCard({ task, agent }: { task: Task; agent: Agent }) {
                 <div
                   className={`transcript-line ${line.speaker === agent.name ? 'agent-line' : ''}`}
                   key={i}
+                  ref={i === transcript.length - 1 ? lastLine : undefined}
                 >
                   <span>{line.speaker}</span>
                   <p>{line.text}</p>

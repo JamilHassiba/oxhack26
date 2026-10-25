@@ -119,15 +119,6 @@ svg {
   font-size: 13px;
 }
 
-.online-dot,
-.available > span {
-  display: inline-block;
-  background: #557840;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
 .main-shell {
   flex: 1;
   min-width: 0;
@@ -302,14 +293,6 @@ summary {
   margin-top: 12px;
   line-height: 1.7;
   overflow-wrap: anywhere;
-}
-.available {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #486033;
-  font-size: 12px;
-  font-weight: 500;
 }
 .modal {
   margin: auto;
@@ -521,28 +504,9 @@ legend {
 .chat-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 14px;
-  padding: 20px 32px;
-  border-bottom: 1px solid var(--border);
-}
-.chat-identity {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-.chat-identity h2 {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  font-size: 18px;
-  font-weight: 650;
-}
-.chat-identity p {
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 3px;
+  padding: 20px 32px 0;
 }
 .chat-top select {
   width: 118px;
@@ -1315,17 +1279,6 @@ legend {
   .chat-top {
     padding: 15px 18px;
   }
-  .chat-identity h2 {
-    font-size: 16px;
-    gap: 10px;
-  }
-  .chat-identity .available {
-    font-size: 10px;
-  }
-  .chat-identity p {
-    max-width: 230px;
-    font-size: 10px;
-  }
   .chat-top select {
     width: 88px;
     padding: 8px 7px;
@@ -1782,4 +1735,48 @@ legend {
   .brand-button {
     font-size: 19px;
   }
+}
+
+/* Booking details table shown in the chat once a call has finished. */
+.booking-summary {
+  width: calc(100% - 36px);
+  margin: 16px 18px 18px;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  font-size: 14px;
+}
+.booking-summary caption {
+  text-align: left;
+  font-weight: 650;
+  font-size: 13px;
+  padding: 0 2px 8px;
+}
+.booking-summary th,
+.booking-summary td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.booking-summary tr:last-child th,
+.booking-summary tr:last-child td {
+  border-bottom: 0;
+}
+.booking-summary th {
+  width: 40%;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--sage);
+}
+.booking-summary td {
+  font-weight: 600;
+}
+.booking-summary .booking-ok {
+  color: #2f6b1f;
+}
+.booking-summary .booking-no {
+  color: var(--accent);
 }
