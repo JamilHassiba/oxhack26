@@ -254,3 +254,92 @@ async def earlier_calls(task_id: str, before_call_id: str) -> list[dict[str, Any
             (task_id, before_call_id, before_call_id),
         )
         return await cur.fetchall()
+
+
+async def find_call_by_conversation(conversation_id: str) -> str | None:
+    """Our call id for an ElevenLabs conversation id (set on the calls row by start_call)."""
+    async with db.get_pool().connection() as conn:
+        row = await (
+            await conn.execute("SELECT id::text FROM calls WHERE el_conversation_id = %s", (conversation_id,))
+        ).fetchone()
+    return row[0] if row else None
+
+
+class CallNotFound(Exception):
+    pass
+
+
+async def request_payment(call_id: str, amount: int, currency: str, description: str) -> dict[str, Any]:
+    """The voice agent asks the user to approve a deposit mid-call.
+
+    Creates a pending_approval payment and a `payment` call event (so the approval card shows), and sets
+    the task to awaiting_approval. Returns {"outcome": ..., "payment": ...} where outcome is "created",
+    "existing" (this call already has a request, whatever its status: asking twice doesn't make two),
+    "not_allowed" (the agent has no payments permission) or "inactive" (the task is already finished).
+    """
+    try:
+        UUID(call_id)
+    except ValueError:
+        raise CallNotFound(call_id) from None
+    async with db.get_pool().connection() as conn, conn.transaction():
+        cur = conn.cursor(row_factory=dict_row)
+        # Lock the call so a repeated tool request can't create two pending payments.
+        await cur.execute(
+            """
+            SELECT c.id::text AS call_id, t.id::text AS task_id, t.status, a.tools,
+                   (SELECT name FROM contacts WHERE phone = c.to_number ORDER BY created_at LIMIT 1) AS merchant
+            FROM calls c JOIN tasks t ON t.id = c.task_id JOIN agents a ON a.id = t.agent_id
+            WHERE c.id = %s FOR UPDATE OF c
+            """,
+            (call_id,),
+        )
+        call = await cur.fetchone()
+        if call is None:
+            raise CallNotFound(call_id)
+        if call["status"] not in ACTIVE_STATUSES:
+            return {"outcome": "inactive", "payment": None}
+        if "payments" not in call["tools"]:
+            return {"outcome": "not_allowed", "payment": None}
+
+        # One deposit request per call: asking again (e.g. after a "pending" answer) returns the same
+        # request with its current status instead of making the user approve twice.
+        await cur.execute(
+            f"SELECT {PAYMENT_COLUMNS} FROM payments WHERE call_id = %s ORDER BY created_at DESC LIMIT 1",
+            (call_id,),
+        )
+        existing = await cur.fetchone()
+        if existing:
+            return {"outcome": "existing", "payment": existing}
+
+        await cur.execute(
+            f"INSERT INTO payments (task_id, call_id, amount, currency, merchant, description)"
+            f" VALUES (%s, %s, %s, %s, %s, %s) RETURNING {PAYMENT_COLUMNS}",
+            (call["task_id"], call_id, amount, currency, call["merchant"], description),
+        )
+        payment = await cur.fetchone()
+        # EVENTS.md: `payment` event, text always present, money in minor units, unique ts via clock_timestamp().
+        await conn.execute(
+            "INSERT INTO call_events (ts, call_id, kind, payload) VALUES (clock_timestamp(), %s, 'payment', %s)",
+            (
+                call_id,
+                Jsonb(
+                    {
+                        "text": f"Waiting for your approval: £{amount / 100:.2f}",
+                        "payment_id": payment["id"],
+                        "amount": amount,
+                        "currency": currency,
+                    }
+                ),
+            ),
+        )
+        await conn.execute(
+            "UPDATE tasks SET status = %s, updated_at = now() WHERE id = %s",
+            (TaskStatus.AWAITING_APPROVAL, call["task_id"]),
+        )
+    return {"outcome": "created", "payment": payment}
+
+
+async def payment_status(payment_id: str) -> str:
+    async with db.get_pool().connection() as conn:
+        (status,) = await (await conn.execute("SELECT status FROM payments WHERE id = %s", (payment_id,))).fetchone()
+    return status
