@@ -183,6 +183,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/calls/{call_id}/events/stream': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Call Event Stream */
+    get: operations['call_event_stream_calls__call_id__events_stream_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/analytics/summary': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Analytics Summary */
+    get: operations['analytics_summary_analytics_summary_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/webhooks/elevenlabs/tools/request_payment_approval': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Request Payment Approval */
+    post: operations['request_payment_approval_webhooks_elevenlabs_tools_request_payment_approval_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/webhooks/elevenlabs/post-call': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Post Call */
+    post: operations['post_call_webhooks_elevenlabs_post_call_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -222,6 +290,31 @@ export interface components {
       /** Tools */
       tools?: ('phone' | 'email' | 'calendar' | 'payments')[] | null;
     };
+    /** AgentStats */
+    AgentStats: {
+      /** Name */
+      name: string;
+      /** Calls */
+      calls: number;
+      /** Success Rate */
+      success_rate: number;
+    };
+    /**
+     * Analytics
+     * @description Matches Analytics in frontend/src/types.ts.
+     */
+    Analytics: {
+      /** Total Calls */
+      total_calls: number;
+      /** Success Rate */
+      success_rate: number;
+      /** Avg Duration Seconds */
+      avg_duration_seconds: number;
+      /** Calls By Day */
+      calls_by_day: components['schemas']['DayCalls'][];
+      /** Agents */
+      agents: components['schemas']['AgentStats'][];
+    };
     /** CalendarEvent */
     CalendarEvent: {
       /** Id */
@@ -258,6 +351,7 @@ export interface components {
       ended_at?: string | null;
       /** Transcript */
       transcript?: components['schemas']['TranscriptLine'][];
+      outcome?: components['schemas']['CallOutcome'] | null;
     };
     /** CallEvent */
     CallEvent: {
@@ -276,6 +370,33 @@ export interface components {
         'dialing' | 'ringing' | 'answered' | 'transcript_line' | 'tool_call' | 'payment' | 'ended';
       payload?: components['schemas']['EventPayload'];
     };
+    /**
+     * CallOutcome
+     * @description What Gemini extracted from the call (orchestrator/outcome.py); drives the booking summary table.
+     *     Every field is optional: older calls were extracted before booking_name/venue existed.
+     */
+    CallOutcome: {
+      /** Result */
+      result?: string | null;
+      /** Booked */
+      booked?: boolean | null;
+      /** Starts At */
+      starts_at?: string | null;
+      /** Party Size */
+      party_size?: number | null;
+      /** Booking Name */
+      booking_name?: string | null;
+      /** Venue */
+      venue?: string | null;
+      /** Deposit Required */
+      deposit_required?: boolean | null;
+      /** Deposit Amount Pence */
+      deposit_amount_pence?: number | null;
+      /** Offered Times */
+      offered_times?: string[];
+      /** Reason */
+      reason?: string | null;
+    };
     /** ChatRequest */
     ChatRequest: {
       /** Message */
@@ -285,6 +406,13 @@ export interface components {
     ChatResponse: {
       /** Task Id */
       task_id: string;
+    };
+    /** DayCalls */
+    DayCalls: {
+      /** Date */
+      date: string;
+      /** Calls */
+      calls: number;
     };
     /** EventPayload */
     EventPayload: {
@@ -324,6 +452,37 @@ export interface components {
        * @enum {string}
        */
       status: 'pending_approval' | 'approved' | 'paid' | 'denied';
+    };
+    /** PaymentApprovalRequest */
+    PaymentApprovalRequest: {
+      /** Call Id */
+      call_id?: string | null;
+      /** Conversation Id */
+      conversation_id?: string | null;
+      /**
+       * Amount
+       * @description Deposit in pounds, e.g. 20 or 20.50
+       */
+      amount: number | string;
+      /**
+       * Currency
+       * @default GBP
+       */
+      currency: string;
+      /**
+       * Description
+       * @default
+       */
+      description: string;
+    };
+    /** PaymentApprovalResponse */
+    PaymentApprovalResponse: {
+      /** Status */
+      status: string;
+      /** Payment Id */
+      payment_id?: string | null;
+      /** Message */
+      message: string;
     };
     /** Task */
     Task: {
@@ -743,6 +902,116 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  call_event_stream_calls__call_id__events_stream_get: {
+    parameters: {
+      query?: never;
+      header?: {
+        'last-event-id'?: string | null;
+      };
+      path: {
+        call_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  analytics_summary_analytics_summary_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Analytics'];
+        };
+      };
+    };
+  };
+  request_payment_approval_webhooks_elevenlabs_tools_request_payment_approval_post: {
+    parameters: {
+      query?: never;
+      header?: {
+        'x-tool-secret'?: string | null;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PaymentApprovalRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PaymentApprovalResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  post_call_webhooks_elevenlabs_post_call_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
         };
       };
     };
