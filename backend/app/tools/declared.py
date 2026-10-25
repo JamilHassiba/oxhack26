@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from app.services import google_calendar
 from app.tools.base import Tool
 from app.tools.calendar import create_calendar_event
 from app.tools.email import send_email
@@ -21,9 +22,11 @@ def uk_time(value: str) -> str:
 
 def calendar_tools(task: dict[str, Any]) -> list[Tool]:
     async def add_event(title: str, starts_at: str, ends_at: str, location: str = "") -> dict:
-        return await create_calendar_event(
+        event = await create_calendar_event(
             task_id=task["id"], title=title, starts_at=uk_time(starts_at), ends_at=uk_time(ends_at), location=location
         )
+        # "added", "not_connected" or "failed": Gemini only says it's in Google Calendar when it is.
+        return {**event, "google_calendar": await google_calendar.add_event(event, task)}
 
     return [
         Tool(
