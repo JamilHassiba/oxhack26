@@ -746,7 +746,7 @@ legend {
   border-radius: 50%;
   color: #fff;
   background: var(--accent);
-  animation: ring 1.6s infinite;
+  animation: ring 2.4s infinite;
 }
 .call-live.answered .call-live-phone {
   animation: none;
@@ -759,10 +759,10 @@ legend {
   inset: 0;
   border-radius: 50%;
   border: 2px solid var(--accent);
-  animation: ripple 2s infinite ease-out;
+  animation: ripple 2.8s infinite ease-out;
 }
 .call-live-phone i:nth-child(2) {
-  animation-delay: 1s;
+  animation-delay: 1.4s;
 }
 .call-live-text {
   flex: 1;
@@ -797,7 +797,7 @@ legend {
 }
 .call-live.answered .call-live-wave i {
   opacity: 0.85;
-  animation: wave 1.3s infinite ease-in-out;
+  animation: wave 2.8s infinite ease-in-out;
 }
 @keyframes ripple {
   from {
@@ -832,13 +832,13 @@ legend {
     transform: scaleY(0.15);
   }
   25% {
-    transform: scaleY(0.9);
+    transform: scaleY(0.6);
   }
   50% {
-    transform: scaleY(0.4);
+    transform: scaleY(0.3);
   }
   75% {
-    transform: scaleY(0.7);
+    transform: scaleY(0.5);
   }
 }
 @media (max-width: 600px) {

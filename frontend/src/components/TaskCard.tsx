@@ -237,7 +237,7 @@ function CallInProgress({ events, duration }: { events: CallEvent[]; duration: n
       </div>
       <span className="call-live-wave" aria-hidden="true">
         {Array.from({ length: BARS }, (_, i) => (
-          <i key={i} style={{ animationDelay: `${-((i * 0.37) % 1.3).toFixed(2)}s` }} />
+          <i key={i} style={{ animationDelay: `${-((i * 0.73) % 2.8).toFixed(2)}s` }} />
         ))}
       </span>
     </div>
