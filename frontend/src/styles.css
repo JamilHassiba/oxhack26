@@ -589,8 +589,9 @@ legend {
   padding: 14px 17px;
   max-width: 85%;
   border-radius: 11px 3px 11px 11px;
-  background: #1e3a8a; /* same dark blue as the profile icons; white text reads clearly on it */
-  color: #fff;
+  background: #eef0fb;
+  color: #0a0a0c; /* darker than the page text, and slightly bolder, so it reads clearly on the pale blue */
+  font-weight: 500;
   font-size: 14px;
   line-height: 1.7;
   overflow-wrap: anywhere;
