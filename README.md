@@ -1,10 +1,43 @@
-# Concierge · OxHack 26
+# Smart Connect · OxHack 26
 
-An agent workspace for the everyday things you'd rather delegate. Choose an agent, grant its tool permissions, send it a task, follow its call, approve a deposit, and find confirmed plans in your calendar.
+Tell an AI agent what you need, and it phones the business for you, books a time that works, and reports back with the transcript and the result.
 
-## Frontend MVP
+Live: https://192-248-148-174.sslip.io
 
-Built with **Vite, React, TypeScript, Tailwind CSS, React Router, and TanStack Query**. Requires Node.js 22.12+ (or 24+) and npm.
+## What it does
+
+1. **Create an agent.** Give it a name and choose what it may do: phone calls, email, calendar and (test) payments.
+2. **Ask in plain English.** For example: "Book a table for 4 at The Ivy tomorrow at 6pm, 7pm is fine too."
+3. **It plans the call.** Gemini works out who to call, what to ask for, and which alternatives you said are fine.
+4. **It makes a real phone call.** An ElevenLabs voice agent rings the business over Twilio and talks to whoever answers. It sticks to your times, offers your alternatives, and says it's an AI if asked. The chat shows the call live, from dialling and ringing to answered, with a timer and a Hang up button.
+5. **You get the result.** When the call ends you see the full transcript, a short summary, and a result table (business, date, time, details). If it's booked and the agent has those permissions, it adds the event to your Google Calendar and emails you a confirmation.
+
+If the time isn't available, the agent can call back once with a time the business offered, as long as it's one you allowed.
+
+## How it's built
+
+```mermaid
+flowchart LR
+  UI[React + TypeScript] -->|REST + live events| API[FastAPI on Vultr]
+  API --> Gemini[Gemini: plans and wraps up]
+  API --> Voice[ElevenLabs voice agent + Twilio]
+  Voice -->|post-call webhook| API
+  API --> DB[(Tiger Data: Postgres + TimescaleDB)]
+  Gemini --> Tools[Google Calendar · Email]
+```
+
+- **Gemini API:** the orchestrator. It turns your message into a call brief (business, goal, constraints, allowed alternatives) using function calling. After the call, it reads the transcript, extracts a structured result, decides whether to call back, adds the calendar event, sends the email and writes your summary.
+- **ElevenLabs:** the voice agent that actually holds the phone conversation, placed through ElevenLabs' Twilio integration. The full transcript arrives through a signed post-call webhook. A server tool lets the agent ask you to approve a deposit mid-call.
+- **Tiger Data:** the database (Postgres + TimescaleDB). Every call is a time-series of events (dialling, ringing, answered, each transcript line, ended) in a `call_events` hypertable. The chat streams the live call view from that table over server-sent events.
+- **Vultr:** a London VM runs the FastAPI app (systemd) behind Caddy, which serves the built frontend and HTTPS.
+
+**Stack:** FastAPI (Python, async psycopg), React + TypeScript + Vite, TanStack Query.
+
+For the demo, every call rings one fixed test number (`CALL_NUMBER`), whatever business you name, so no real business is ever called.
+
+## Run it locally
+
+**Frontend only (demo mode).** This simulates calls, so it needs no backend or keys:
 
 ```sh
 cd frontend
@@ -13,46 +46,22 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open the local URL printed by Vite. Demo mode is enabled by default and needs no backend or credentials. All demo calls, emails, bookings, and payments are simulated; state is saved in this browser. It does not place calls or spend money.
+**Full app:**
 
-### Try the demo
-
-1. Choose Maya with the arrow buttons, check the tools you want to allow, and select **Enter agent**. Permissions are saved per agent. You can also create a new agent.
-2. Choose **Book a table**, then send the message.
-3. Watch the simulated call and transcript. A £20 test deposit approval appears after about six seconds.
-4. Approve to complete the booking, or decline to stop it without a reservation.
-5. Visit **Calendar**, export the `.ics` file, then view **Analytics**.
-6. Select a **Demo scenario** to rehearse no answer, fully booked, a declined deposit, or the agreed alternative time.
-7. Open **History** to search requests and transcripts. Use **Manage** on an agent to edit, duplicate, or delete it; active tasks must be resolved first.
-
-The fixtures demonstrate bookings at The Ivy Oxford tomorrow at 18:00, with an alternative-time scenario at 19:00; the selected scenario determines the outcome, rather than interpreting the request text. Agents without phone tools complete a simple simulated organisation task. Agents without payments cannot confirm the restaurant's deposit. Calendar and email actions respect their tool toggles. Clear this site's browser storage to reset the demo.
-
-### Checks
+1. Copy `.env.example` to `.env` in the repo root and fill in the keys: Gemini, Tiger `DATABASE_URL`, ElevenLabs, Twilio, `CALL_NUMBER`, and optionally Google Calendar and Resend.
+2. Install and start the backend:
 
 ```sh
-npm run build
-npm test
-npx playwright install chromium
-npm run test:e2e
+cd backend
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python -m scripts.migrate
+.venv/bin/python -m uvicorn app.main:app --port 8000
 ```
 
-Browser tests cover desktop and mobile: agent selection, saved permissions, text contrast, the full booking flow, approval and decline, calendar download, analytics, and failure recovery.
+3. Run the frontend with `VITE_DEMO_MODE=false` in `frontend/.env.local`. During development, `/api` is proxied to port 8000.
 
-## Connect the backend
+**Tests:** run `.venv/bin/python -m pytest` in `backend`, and `npm test && npm run build` in `frontend`.
 
-Set `VITE_DEMO_MODE=false` in `frontend/.env.local`, then restart Vite. `/api` is proxied to `http://localhost:8000` during development. Alternatively set `VITE_API_BASE_URL` to your backend URL (it must allow the frontend origin with CORS). Production settings are baked into the build; see [frontend/README.md](frontend/README.md).
+## Team
 
-The shared backend now registers the agents, tasks and calendar API; the remaining chat, voice, payment and analytics routes are still being integrated. See [local development](docs/LOCAL_DEVELOPMENT.md) to continue without Vultr. The typed adapter follows the contract in [docs/DESIGN.md](docs/DESIGN.md), with explicit provisional response contracts documented in [frontend/README.md](frontend/README.md). Run `npm run api:generate` once FastAPI exposes `/openapi.json`, then check it against the agreed frontend contract. The current handwritten types are the agreed API contract in PLAN.md. Live task history uses the agreed GET /agents/{id}/tasks endpoint and works across browsers. Agent profile updates and deletion are additional adapter contracts documented in frontend/README.md. Live mode never silently falls back to simulated results.
-
-```mermaid
-flowchart LR
-  UI[React + TypeScript] -->|REST + SSE| API[FastAPI]
-  API --> Gemini[Gemini orchestrator]
-  API --> Voice[ElevenLabs + Twilio]
-  API --> DB[Tiger Data]
-  Gemini --> Tools[Email · Calendar · Test payments]
-```
-
-[System design](docs/DESIGN.md) · [Team plan](docs/PLAN.md)
-
-The simulated [fallback video](docs/demo/fallback-demo.webm), screenshots and [rehearsal script](docs/demo/RUNBOOK.md) are ready. Real service integration, production rehearsal and public submission remain pending. No production or sponsor integration is claimed by the local demo.
+Jamil and Alex (plus Evan, who built the first frontend). See the [system design](docs/DESIGN.md).
