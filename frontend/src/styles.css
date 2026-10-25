@@ -512,6 +512,7 @@ legend {
   }
 }
 .composer {
+  margin: 0 -2px; /* 2px wider than the messages on each side */
   background: #fff;
   border: 1.5px solid #a9b79b;
   border-radius: 10px;
